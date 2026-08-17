@@ -12,6 +12,13 @@ export type InsightsStackParamList = {
   EditWeightGoal: undefined;
 };
 
+export type PerformanceStackParamList = {
+  PerformanceHub: undefined;
+  MetricDetail: { metricId: string };
+  AddEditMetric: { metricId?: string };
+  EditMetricTarget: { metricId: string };
+};
+
 export type SettingsStackParamList = {
   Settings: undefined;
 };
@@ -19,5 +26,6 @@ export type SettingsStackParamList = {
 export type RootTabParamList = {
   TodayTab: undefined;
   InsightsTab: undefined;
+  PerformanceTab: undefined;
   SettingsTab: undefined;
 };

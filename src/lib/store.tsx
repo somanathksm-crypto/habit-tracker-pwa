@@ -3,7 +3,7 @@ import { addDays, format, subDays } from 'date-fns';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { STARTER_HABITS } from './starterHabits';
 import { expectedWeightOn } from './stats';
-import type { FrequencyType, Habit, HabitCategory, HabitLog, WeightLog, WeightTarget } from '../types';
+import type { FrequencyType, Habit, HabitCategory, HabitLog, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -16,6 +16,9 @@ interface StoredState {
   habitLogs: HabitLog[];
   weightLogs: WeightLog[];
   weightTarget: WeightTarget | null;
+  metrics: Metric[];
+  metricLogs: MetricLog[];
+  metricTargets: MetricTarget[];
 }
 
 const emptyState: StoredState = {
@@ -23,6 +26,9 @@ const emptyState: StoredState = {
   habitLogs: [],
   weightLogs: [],
   weightTarget: null,
+  metrics: [],
+  metricLogs: [],
+  metricTargets: [],
 };
 
 function uid(): string {
@@ -45,6 +51,13 @@ interface DataContextValue extends StoredState {
   logsForHabit: (habitId: string) => HabitLog[];
   upsertWeightLog: (logDate: string, value: number) => void;
   setWeightTarget: (target: Omit<WeightTarget, 'user_id'>) => void;
+  addMetric: (input: { name: string; unit: string; higher_is_better: boolean }) => Metric;
+  updateMetric: (id: string, patch: Partial<Pick<Metric, 'name' | 'unit' | 'higher_is_better'>>) => void;
+  deleteMetric: (id: string) => void;
+  logsForMetric: (metricId: string) => MetricLog[];
+  upsertMetricLog: (metricId: string, logDate: string, value: number) => void;
+  targetForMetric: (metricId: string) => MetricTarget | undefined;
+  setMetricTarget: (metricId: string, target: Omit<MetricTarget, 'metric_id'>) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -206,6 +219,59 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       setWeightTarget: (target) => {
         setState((s) => ({ ...s, weightTarget: { ...target, user_id: LOCAL_USER_ID } }));
+      },
+      addMetric: ({ name, unit, higher_is_better }) => {
+        const metric: Metric = {
+          id: uid(),
+          user_id: LOCAL_USER_ID,
+          name,
+          unit,
+          higher_is_better,
+          created_at: new Date().toISOString(),
+        };
+        setState((s) => ({ ...s, metrics: [...s.metrics, metric] }));
+        return metric;
+      },
+      updateMetric: (id, patch) => {
+        setState((s) => ({
+          ...s,
+          metrics: s.metrics.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+        }));
+      },
+      deleteMetric: (id) => {
+        setState((s) => ({
+          ...s,
+          metrics: s.metrics.filter((m) => m.id !== id),
+          metricLogs: s.metricLogs.filter((l) => l.metric_id !== id),
+          metricTargets: s.metricTargets.filter((t) => t.metric_id !== id),
+        }));
+      },
+      logsForMetric: (metricId) => state.metricLogs.filter((l) => l.metric_id === metricId),
+      upsertMetricLog: (metricId, logDate, value) => {
+        setState((s) => {
+          const existing = s.metricLogs.find((l) => l.metric_id === metricId && l.log_date === logDate);
+          if (existing) {
+            return {
+              ...s,
+              metricLogs: s.metricLogs.map((l) => (l.id === existing.id ? { ...l, value } : l)),
+            };
+          }
+          const log: MetricLog = { id: uid(), metric_id: metricId, log_date: logDate, value };
+          return { ...s, metricLogs: [...s.metricLogs, log] };
+        });
+      },
+      targetForMetric: (metricId) => state.metricTargets.find((t) => t.metric_id === metricId),
+      setMetricTarget: (metricId, target) => {
+        setState((s) => {
+          const next: MetricTarget = { ...target, metric_id: metricId };
+          const exists = s.metricTargets.some((t) => t.metric_id === metricId);
+          return {
+            ...s,
+            metricTargets: exists
+              ? s.metricTargets.map((t) => (t.metric_id === metricId ? next : t))
+              : [...s.metricTargets, next],
+          };
+        });
       },
     }),
     [state, loading]

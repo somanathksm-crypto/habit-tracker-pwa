@@ -39,3 +39,27 @@ export const HABIT_CATEGORIES: { value: HabitCategory; label: string }[] = [
   { value: 'supplement', label: 'Supplements' },
   { value: 'general', label: 'General' },
 ];
+
+export interface Metric {
+  id: string;
+  user_id: string;
+  name: string; // e.g. "Pushup count", "5k run time"
+  unit: string; // free-text, e.g. "reps", "min", "kg"
+  higher_is_better: boolean; // true: bigger = improvement (reps, weight lifted); false: smaller = improvement (race time)
+  created_at: string; // ISO timestamp
+}
+
+export interface MetricLog {
+  id: string;
+  metric_id: string;
+  log_date: string; // yyyy-MM-dd
+  value: number;
+}
+
+export interface MetricTarget {
+  metric_id: string; // one row per metric, unlike WeightTarget's user_id-keyed singleton
+  start_value: number;
+  target_value: number;
+  start_date: string; // yyyy-MM-dd
+  target_date: string; // yyyy-MM-dd
+}
