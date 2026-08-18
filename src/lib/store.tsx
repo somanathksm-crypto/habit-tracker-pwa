@@ -70,7 +70,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setState(JSON.parse(raw));
+        // Merge onto emptyState rather than replacing it outright — a
+        // snapshot saved before a new field/collection existed (e.g. an
+        // older session's data missing metrics/metricLogs/metricTargets)
+        // would otherwise leave those keys undefined instead of [].
+        if (raw) setState({ ...emptyState, ...JSON.parse(raw) });
       } finally {
         setLoading(false);
       }

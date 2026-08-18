@@ -374,3 +374,30 @@ export function metricLoggingStreak(logs: MetricLog[]): number {
   }
   return streak;
 }
+
+/** Every completed habit log + every logged metric value, all-time — the single "did the work" signal driving avatar growth. */
+export function totalCompletions(habitLogs: HabitLog[], metricLogs: MetricLog[]): number {
+  return habitLogs.filter((l) => l.completed).length + metricLogs.length;
+}
+
+export interface AvatarStageInfo {
+  stage: 1 | 2 | 3 | 4 | 5;
+  label: 'Lean' | 'Building' | 'Toned' | 'Strong' | 'Peak';
+  completions: number;
+  nextThreshold: number | null; // completions needed to reach the next stage; null at Peak
+}
+
+const AVATAR_STAGES: { stage: 1 | 2 | 3 | 4 | 5; label: AvatarStageInfo['label']; min: number }[] = [
+  { stage: 1, label: 'Lean', min: 0 },
+  { stage: 2, label: 'Building', min: 15 },
+  { stage: 3, label: 'Toned', min: 40 },
+  { stage: 4, label: 'Strong', min: 80 },
+  { stage: 5, label: 'Peak', min: 150 },
+];
+
+export function avatarStageInfo(habitLogs: HabitLog[], metricLogs: MetricLog[]): AvatarStageInfo {
+  const completions = totalCompletions(habitLogs, metricLogs);
+  const current = [...AVATAR_STAGES].reverse().find((s) => completions >= s.min)!;
+  const next = AVATAR_STAGES.find((s) => s.stage === current.stage + 1);
+  return { stage: current.stage, label: current.label, completions, nextThreshold: next?.min ?? null };
+}

@@ -3,10 +3,11 @@ import { format } from 'date-fns';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB, TextInput } from 'react-native-paper';
+import { AvatarFlex } from '../components/AvatarFlex';
 import { HabitToggleCard } from '../components/HabitToggleCard';
 import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
-import { currentStreak, todayStr } from '../lib/stats';
+import { avatarStageInfo, currentStreak, todayStr } from '../lib/stats';
 import { colors } from '../theme';
 import { HABIT_CATEGORIES } from '../types';
 import type { TodayStackParamList } from '../navigation/types';
@@ -14,7 +15,7 @@ import type { TodayStackParamList } from '../navigation/types';
 type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 
 export function TodayScreen({ navigation }: Props) {
-  const { habits, habitLogs, weightLogs, toggleHabitLog, upsertWeightLog, logsForHabit } = useData();
+  const { habits, habitLogs, weightLogs, metricLogs, toggleHabitLog, upsertWeightLog, logsForHabit } = useData();
   const [weightInput, setWeightInput] = useState('');
   const today = todayStr();
 
@@ -22,6 +23,7 @@ export function TodayScreen({ navigation }: Props) {
   const doneCount = habits.filter((h) =>
     habitLogs.some((l) => l.habit_id === h.id && l.log_date === today && l.completed)
   ).length;
+  const avatar = avatarStageInfo(habitLogs, metricLogs);
 
   const grouped = useMemo(() => {
     return HABIT_CATEGORIES.map((c) => ({
@@ -49,6 +51,18 @@ export function TodayScreen({ navigation }: Props) {
             <Text style={styles.greeting}>Today</Text>
           </View>
           {habits.length > 0 && <ProgressRing completed={doneCount} total={habits.length} />}
+        </View>
+
+        <View style={styles.avatarCard}>
+          <AvatarFlex stage={avatar.stage} size={72} />
+          <View style={styles.avatarText}>
+            <Text style={styles.avatarStageLabel}>{avatar.label}</Text>
+            <Text style={styles.avatarProgress}>
+              {avatar.nextThreshold
+                ? `${avatar.completions}/${avatar.nextThreshold} to next stage`
+                : `${avatar.completions} completions — maxed out`}
+            </Text>
+          </View>
         </View>
 
         {allDone && (
@@ -128,6 +142,19 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   date: { fontSize: 13, color: colors.textSecondary },
   greeting: { fontSize: 24, fontWeight: '700', color: colors.text },
+  avatarCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  avatarText: { flex: 1, marginLeft: 12 },
+  avatarStageLabel: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  avatarProgress: { fontSize: 12, color: colors.textSecondary },
   doneBanner: {
     backgroundColor: colors.accentSoft,
     borderRadius: 12,
