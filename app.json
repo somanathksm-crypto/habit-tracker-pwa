@@ -19,7 +19,13 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Habit Tracker",
+      "shortName": "Habits",
+      "description": "Habit, weight, and performance tracking",
+      "lang": "en",
+      "themeColor": "#35513F",
+      "backgroundColor": "#F1EFE9"
     },
     "plugins": [
       "expo-font"
