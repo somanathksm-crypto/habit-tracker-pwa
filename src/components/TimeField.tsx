@@ -1,0 +1,68 @@
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import React, { useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { colors } from '../theme';
+
+interface Props {
+  value: string; // 'HH:mm'
+  onChange: (time: string) => void;
+}
+
+function toDate(time: string): Date {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+function toTimeString(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Tap to pick a time. Android opens the system dialog; iOS reveals an inline spinner. */
+export function TimeField({ value, onChange }: Props) {
+  const [iosOpen, setIosOpen] = useState(false);
+
+  const open = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: toDate(value),
+        mode: 'time',
+        is24Hour: false,
+        onChange: (event, date) => {
+          if (event.type === 'set' && date) onChange(toTimeString(date));
+        },
+      });
+    } else {
+      setIosOpen((o) => !o);
+    }
+  };
+
+  return (
+    <>
+      <Pressable onPress={open} style={styles.field}>
+        <Text style={styles.text}>{value}</Text>
+      </Pressable>
+      {iosOpen && Platform.OS === 'ios' && (
+        <DateTimePicker
+          value={toDate(value)}
+          mode="time"
+          display="spinner"
+          onChange={(event, date) => {
+            if (date) onChange(toTimeString(date));
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  field: {
+    backgroundColor: colors.accentFaint,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  text: { fontSize: 16, fontWeight: '700', color: colors.accent, minWidth: 58 },
+});

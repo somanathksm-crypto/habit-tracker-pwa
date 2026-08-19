@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Switch } from 'react-native-paper';
 import { useData } from '../lib/store';
+import {
+  countScheduled,
+  notificationsSupported,
+  requestNotificationPermission,
+} from '../lib/notifications';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors } from '../theme';
 import type { HabitView } from '../types';
@@ -12,8 +17,44 @@ const VIEW_OPTIONS: { value: HabitView; label: string; description: string }[] =
 ];
 
 export function SettingsScreen() {
-  const [reminder, setReminder] = useState(false);
-  const { habits, seedStarterHabits, seedDemoData, habitView, setHabitView } = useData();
+  const {
+    habits,
+    seedStarterHabits,
+    seedDemoData,
+    habitView,
+    setHabitView,
+    reminders,
+    remindersEnabled,
+    setRemindersEnabled,
+  } = useData();
+  const [scheduled, setScheduled] = useState(0);
+
+  // Show what the OS actually has queued, not just what we intended.
+  useEffect(() => {
+    let active = true;
+    countScheduled().then((n) => {
+      if (active) setScheduled(n);
+    });
+    return () => {
+      active = false;
+    };
+  }, [reminders, remindersEnabled]);
+
+  const toggleReminders = async (next: boolean) => {
+    if (!next) {
+      setRemindersEnabled(false);
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      Alert.alert(
+        'Notifications are blocked',
+        'Turn notifications on for Habit Tracker in your phone settings, then try again.'
+      );
+      return;
+    }
+    setRemindersEnabled(true);
+  };
 
   const loadStarterHabits = () => {
     const added = seedStarterHabits();
@@ -66,13 +107,31 @@ export function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
+        <Text style={styles.sectionTitle}>Reminders</Text>
         <View style={[styles.card, styles.row]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Daily reminder</Text>
-            <Text style={styles.rowSubtitle}>Nudge to log habits each evening</Text>
+            <Text style={styles.rowLabel}>Habit alarms</Text>
+            <Text style={styles.rowSubtitle}>
+              {notificationsSupported
+                ? 'Ring at the times set on each habit'
+                : 'Not available in the browser — install the app to get alarms'}
+            </Text>
           </View>
-          <Switch value={reminder} onValueChange={setReminder} color={colors.accent} />
+          <Switch
+            value={remindersEnabled}
+            onValueChange={toggleReminders}
+            disabled={!notificationsSupported}
+            color={colors.accent}
+          />
+        </View>
+        <View style={styles.card}>
+          <Text style={styles.rowSubtitle}>
+            {reminders.length === 0
+              ? 'No reminder times set yet. Open a habit and add one.'
+              : notificationsSupported
+                ? `${reminders.length} reminder time${reminders.length === 1 ? '' : 's'} set · ${scheduled} alarm${scheduled === 1 ? '' : 's'} scheduled`
+                : `${reminders.length} reminder time${reminders.length === 1 ? '' : 's'} saved — these will ring once you install the app.`}
+          </Text>
         </View>
       </View>
 

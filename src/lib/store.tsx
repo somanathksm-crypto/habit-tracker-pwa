@@ -3,7 +3,8 @@ import { addDays, format, subDays } from 'date-fns';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { STARTER_HABITS } from './starterHabits';
 import { expectedWeightOn } from './stats';
-import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
+import { syncScheduledReminders } from './notifications';
+import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitReminder, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -21,6 +22,9 @@ interface StoredState {
   metricTargets: MetricTarget[];
   /** null until the user picks a layout on first launch. */
   habitView: HabitView | null;
+  reminders: HabitReminder[];
+  /** Master switch — off means nothing is scheduled regardless of per-habit times. */
+  remindersEnabled: boolean;
 }
 
 const emptyState: StoredState = {
@@ -32,6 +36,8 @@ const emptyState: StoredState = {
   metricLogs: [],
   metricTargets: [],
   habitView: null,
+  reminders: [],
+  remindersEnabled: false,
 };
 
 function uid(): string {
@@ -62,6 +68,9 @@ interface DataContextValue extends StoredState {
   targetForMetric: (metricId: string) => MetricTarget | undefined;
   setMetricTarget: (metricId: string, target: Omit<MetricTarget, 'metric_id'>) => void;
   setHabitView: (view: HabitView) => void;
+  remindersForHabit: (habitId: string) => HabitReminder[];
+  setRemindersForHabit: (habitId: string, times: string[]) => void;
+  setRemindersEnabled: (enabled: boolean) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -89,6 +98,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
   }, [state, loading]);
+
+  // Keep the OS alarm schedule in step with stored reminders. Renaming a habit
+  // changes its alarm text, so habits are a dependency too.
+  useEffect(() => {
+    if (loading) return;
+    syncScheduledReminders(state.habits, state.reminders, state.remindersEnabled).catch(() => {});
+  }, [state.habits, state.reminders, state.remindersEnabled, loading]);
 
   const value = useMemo<DataContextValue>(
     () => ({
@@ -118,6 +134,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           ...s,
           habits: s.habits.filter((h) => h.id !== id),
           habitLogs: s.habitLogs.filter((l) => l.habit_id !== id),
+          reminders: s.reminders.filter((r) => r.habit_id !== id),
         }));
       },
       seedStarterHabits: () => {
@@ -283,6 +300,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       setHabitView: (view) => {
         setState((s) => ({ ...s, habitView: view }));
+      },
+      remindersForHabit: (habitId) =>
+        state.reminders.filter((r) => r.habit_id === habitId).sort((a, b) => a.time.localeCompare(b.time)),
+      setRemindersForHabit: (habitId, times) => {
+        setState((s) => {
+          // Duplicate times would just fire two identical alarms.
+          const unique = [...new Set(times)].sort();
+          const others = s.reminders.filter((r) => r.habit_id !== habitId);
+          const next = unique.map((time) => ({ id: uid(), habit_id: habitId, time }));
+          return { ...s, reminders: [...others, ...next] };
+        });
+      },
+      setRemindersEnabled: (enabled) => {
+        setState((s) => ({ ...s, remindersEnabled: enabled }));
       },
     }),
     [state, loading]

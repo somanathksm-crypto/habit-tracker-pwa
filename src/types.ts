@@ -14,6 +14,13 @@ export interface Habit {
   created_at: string; // ISO timestamp
 }
 
+/** One daily alarm for a habit. A habit can have as many as the user wants. */
+export interface HabitReminder {
+  id: string;
+  habit_id: string;
+  time: string; // 'HH:mm', 24-hour, local device time
+}
+
 export interface HabitLog {
   id: string;
   habit_id: string;
