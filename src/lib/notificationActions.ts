@@ -58,6 +58,40 @@ async function enqueue(action: PendingAction) {
   }
 }
 
+const LAST_HANDLED_KEY = 'habit-tracker/last-handled-response';
+
+/**
+ * Backstop for a button press the background task never got to handle — the
+ * OS still remembers the most recent response, so it can be picked up next
+ * time the app runs. Guarded by the notification's id so the same press isn't
+ * replayed on every launch.
+ */
+export async function processLaunchResponse(): Promise<boolean> {
+  if (!notificationsSupported) return false;
+  try {
+    const response = await Notifications.getLastNotificationResponseAsync();
+    if (!response) return false;
+    const id = response.notification?.request?.identifier;
+    if (!id) return false;
+
+    const handled = await AsyncStorage.getItem(LAST_HANDLED_KEY);
+    if (handled === id) return false;
+    await AsyncStorage.setItem(LAST_HANDLED_KEY, id);
+
+    // Tapping the notification body isn't an action we act on.
+    if (response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) return false;
+
+    await handleNotificationAction(
+      response.actionIdentifier,
+      (response.notification?.request?.content?.data ?? {}) as Record<string, unknown>,
+      id
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Reads and clears the queue. Returns what was waiting. */
 export async function drainActionQueue(): Promise<PendingAction[]> {
   try {

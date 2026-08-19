@@ -5,7 +5,11 @@ import { AppState } from 'react-native';
 import { STARTER_HABITS } from './starterHabits';
 import { expectedWeightOn } from './stats';
 import { syncScheduledReminders } from './notifications';
-import { addForegroundActionListener, drainActionQueue } from './notificationActions';
+import {
+  addForegroundActionListener,
+  drainActionQueue,
+  processLaunchResponse,
+} from './notificationActions';
 import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
 import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitReminder, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
@@ -119,6 +123,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // no access to this state. Apply anything waiting, on launch and whenever the
   // app comes back to the foreground.
   const applyPendingActions = useCallback(async () => {
+    // Catch a press the background task missed before draining, so it lands in
+    // the same pass rather than waiting for the next foreground event.
+    await processLaunchResponse();
     const pending = await drainActionQueue();
     if (pending.length === 0) return;
     setState((s) => {

@@ -23,6 +23,11 @@ export function configureNotificationHandler() {
       shouldSetBadge: false,
     }),
   });
+  // Register the action buttons at startup rather than only during a sync —
+  // a notification delivered before any sync has run would otherwise reference
+  // a category the system doesn't know about yet, and show no buttons.
+  ensureNotificationCategory().catch(() => {});
+  ensureAlarmChannel().catch(() => {});
 }
 
 /**
@@ -200,10 +205,15 @@ export async function nextScheduledAlarm(): Promise<Date | null> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   let soonest: number | null = null;
   for (const request of scheduled) {
-    // Trigger shape varies by type and platform; a dated trigger carries a
-    // `date` we can read, anything else is skipped rather than guessed at.
-    const trigger = request.trigger as { date?: number | string | Date } | null;
-    const raw = trigger?.date;
+    // What comes back is the *serialised* trigger, not the input we passed.
+    // Android sends a date trigger as { type: 'date', value: timestamp } — the
+    // `date` key only exists on the input side, so reading that alone finds
+    // nothing and makes a healthy queue look empty.
+    const trigger = request.trigger as
+      | { type?: string; value?: number | string; date?: number | string | Date }
+      | null;
+    if (!trigger) continue;
+    const raw = trigger.value ?? trigger.date;
     if (raw === undefined) continue;
     const ms = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
     if (Number.isNaN(ms)) continue;
@@ -229,7 +239,9 @@ export async function scheduleTestAlarm(seconds = 60): Promise<boolean> {
       sticky: true,
       autoDismiss: false,
       interruptionLevel: 'timeSensitive',
-      data: { test: true },
+      // Carries the buttons too, so this genuinely tests what a real alarm does.
+      categoryIdentifier: ALARM_CATEGORY_ID,
+      data: { test: true, habitName: 'Test alarm' },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
