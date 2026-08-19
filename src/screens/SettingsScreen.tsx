@@ -10,6 +10,7 @@ import {
   requestNotificationPermission,
   scheduleTestAlarm,
 } from '../lib/notifications';
+import { batterySetupSupported, openBatteryOptimizationPrompt } from '../lib/batteryOptimization';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors } from '../theme';
 import type { HabitView } from '../types';
@@ -29,6 +30,8 @@ export function SettingsScreen() {
     reminders,
     remindersEnabled,
     setRemindersEnabled,
+    batteryPromptShown,
+    markBatteryPromptShown,
   } = useData();
   const [scheduled, setScheduled] = useState(0);
   const [nextAlarm, setNextAlarm] = useState<Date | null>(null);
@@ -84,6 +87,19 @@ export function SettingsScreen() {
       return;
     }
     setRemindersEnabled(true);
+    // Asked once, right after alarms are turned on — the point where it
+    // matters and where the reason is obvious.
+    if (batterySetupSupported && !batteryPromptShown) {
+      markBatteryPromptShown();
+      Alert.alert(
+        'One more step',
+        'Phones often stop background apps to save battery, which silently prevents alarms from ringing. Allowing this app to run in the background fixes it.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Allow', onPress: () => openBatteryOptimizationPrompt() },
+        ]
+      );
+    }
   };
 
   const loadStarterHabits = () => {
@@ -185,6 +201,20 @@ export function SettingsScreen() {
             </Button>
             <Button mode="text" onPress={showTroubleshooting} style={{ marginTop: 4 }}>
               Alarms not working?
+            </Button>
+          </View>
+        )}
+
+        {batterySetupSupported && (
+          <View style={styles.card}>
+            <Text style={styles.rowLabel}>Allow background running</Text>
+            <Text style={styles.rowSubtitle}>
+              Phones stop background apps to save battery, which silently prevents alarms from
+              ringing. This is the setting that fixes it — Android gives no way to check it from
+              here, so use the test alarm afterwards.
+            </Text>
+            <Button mode="outlined" onPress={openBatteryOptimizationPrompt} style={{ marginTop: 10 }}>
+              Open battery setting
             </Button>
           </View>
         )}

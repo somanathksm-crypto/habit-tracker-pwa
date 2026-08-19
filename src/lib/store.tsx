@@ -32,6 +32,8 @@ interface StoredState {
   reminders: HabitReminder[];
   /** Master switch — off means nothing is scheduled regardless of per-habit times. */
   remindersEnabled: boolean;
+  /** Whether we've already offered the battery-exemption prompt, so it's asked once. */
+  batteryPromptShown: boolean;
 }
 
 const emptyState: StoredState = {
@@ -45,6 +47,7 @@ const emptyState: StoredState = {
   habitView: null,
   reminders: [],
   remindersEnabled: false,
+  batteryPromptShown: false,
 };
 
 function uid(): string {
@@ -78,6 +81,7 @@ interface DataContextValue extends StoredState {
   remindersForHabit: (habitId: string) => HabitReminder[];
   setRemindersForHabit: (habitId: string, reminders: Omit<HabitReminder, 'id' | 'habit_id'>[]) => void;
   setRemindersEnabled: (enabled: boolean) => void;
+  markBatteryPromptShown: () => void;
 }
 
 /**
@@ -405,6 +409,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       setRemindersEnabled: (enabled) => {
         setState((s) => ({ ...s, remindersEnabled: enabled }));
+      },
+      markBatteryPromptShown: () => {
+        setState((s) => ({ ...s, batteryPromptShown: true }));
       },
     }),
     [state, loading]
