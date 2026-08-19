@@ -8,6 +8,7 @@ import { AddEditMetricScreen } from '../screens/AddEditMetricScreen';
 import { EditMetricTargetScreen } from '../screens/EditMetricTargetScreen';
 import { EditWeightGoalScreen } from '../screens/EditWeightGoalScreen';
 import { HabitDetailScreen } from '../screens/HabitDetailScreen';
+import { HabitGridScreen } from '../screens/HabitGridScreen';
 import { InsightsScreen } from '../screens/InsightsScreen';
 import { MetricDetailScreen } from '../screens/MetricDetailScreen';
 import { PerformanceHubScreen } from '../screens/PerformanceHubScreen';
@@ -85,6 +86,7 @@ function SettingsStackNavigator() {
 
 const ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
   TodayTab: 'check-circle-outline',
+  GridTab: 'table',
   InsightsTab: 'chart-line',
   PerformanceTab: 'speedometer',
   SettingsTab: 'cog-outline',
@@ -92,6 +94,7 @@ const ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.
 
 const TAB_LABELS: Record<keyof RootTabParamList, string> = {
   TodayTab: 'Today',
+  GridTab: 'Grid',
   InsightsTab: 'Insights',
   PerformanceTab: 'Performance',
   SettingsTab: 'Settings',
@@ -113,6 +116,7 @@ export function RootNavigator() {
         })}
       >
         <Tab.Screen name="TodayTab" component={TodayStackNavigator} />
+        <Tab.Screen name="GridTab" component={HabitGridScreen} />
         <Tab.Screen name="InsightsTab" component={InsightsStackNavigator} />
         <Tab.Screen name="PerformanceTab" component={PerformanceStackNavigator} />
         <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />

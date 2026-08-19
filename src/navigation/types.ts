@@ -25,6 +25,7 @@ export type SettingsStackParamList = {
 
 export type RootTabParamList = {
   TodayTab: undefined;
+  GridTab: undefined;
   InsightsTab: undefined;
   PerformanceTab: undefined;
   SettingsTab: undefined;
