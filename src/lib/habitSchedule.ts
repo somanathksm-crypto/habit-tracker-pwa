@@ -240,3 +240,80 @@ export function describeProgress(progress: PeriodProgress): string {
 export function hasNonTrivialSchedule(habit: Habit): boolean {
   return scheduleOf(habit).period !== 'day';
 }
+
+/**
+ * The longest run of consecutive satisfied periods in the habit's history.
+ *
+ * Counted in periods, not days, so a habit due Mon/Thu can exceed a streak of
+ * two — the day-based version topped out there because Tuesday broke the run.
+ */
+export function longestPeriodStreak(habit: Habit, logs: HabitLog[], now: Date = new Date()): number {
+  const schedule = scheduleOf(habit);
+  const created = parseISO(habit.created_at);
+  const doneOn = doneDates(logs);
+
+  if (schedule.period === 'custom') {
+    const past = schedule.dates.filter((d) => d <= dateKey(now)).sort();
+    let best = 0;
+    let run = 0;
+    for (const d of past) {
+      run = doneOn.has(d) ? run + 1 : 0;
+      best = Math.max(best, run);
+    }
+    return best;
+  }
+
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < 800; i += 1) {
+    const cursor = schedule.period === 'day' ? addDays(now, -i) : addWeeks(now, -i);
+    if (differenceInCalendarDays(cursor, created) < 0) break;
+    // Walking backwards, so a run here is a run forwards too — only its length
+    // matters, not which end it started at.
+    run = periodSatisfied(habit, logs, cursor) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+/**
+ * Consecutive missed periods ending with the most recent *finished* one, or 0
+ * once the current period is satisfied.
+ *
+ * The period in progress is deliberately excluded rather than counted as a
+ * miss — the same reasoning as [periodStreak]. A weekly habit showing "losing
+ * streak: 1" every Monday morning would contradict the whole point of
+ * scheduling: it isn't failing yet, the week has barely started.
+ */
+export function missedPeriodStreak(habit: Habit, logs: HabitLog[], now: Date = new Date()): number {
+  if (periodSatisfied(habit, logs, now)) return 0;
+
+  const schedule = scheduleOf(habit);
+  const created = parseISO(habit.created_at);
+  const doneOn = doneDates(logs);
+
+  if (schedule.period === 'custom') {
+    const past = schedule.dates.filter((d) => d < dateKey(now)).sort().reverse();
+    let streak = 0;
+    for (const d of past) {
+      if (doneOn.has(d)) break;
+      streak += 1;
+    }
+    return streak;
+  }
+
+  let streak = 0;
+  for (let i = 1; i < 800; i += 1) {
+    const cursor = schedule.period === 'day' ? addDays(now, -i) : addWeeks(now, -i);
+    if (differenceInCalendarDays(cursor, created) < 0) break;
+    if (periodSatisfied(habit, logs, cursor)) break;
+    streak += 1;
+  }
+  return streak;
+}
+
+/** What one period is called, for labelling stats — "day", "week", "date". */
+export function periodNoun(habit: Habit): string {
+  const period = scheduleOf(habit).period;
+  return period === 'day' ? 'day' : period === 'week' ? 'week' : 'date';
+}

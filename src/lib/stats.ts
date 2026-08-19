@@ -7,10 +7,9 @@ import {
   isAfter,
   isBefore,
   parseISO,
-  startOfISOWeek,
   startOfMonth,
 } from 'date-fns';
-import { expectedOccurrences, periodCompletionPct } from './habitSchedule';
+import { expectedOccurrences, isDueOn, missedPeriodStreak, periodNoun } from './habitSchedule';
 import type { Habit, HabitLog, Metric, MetricLog, MetricTarget } from '../types';
 
 export const todayStr = () => format(new Date(), 'yyyy-MM-dd');
@@ -19,138 +18,6 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 function completedDateSet(logs: HabitLog[]): Set<string> {
   return new Set(logs.filter((l) => l.completed).map((l) => l.log_date));
-}
-
-/** Consecutive completed days ending today (or yesterday, if today isn't logged yet). */
-export function currentStreak(logs: HabitLog[]): number {
-  const done = completedDateSet(logs);
-  let cursor = new Date();
-  if (!done.has(format(cursor, 'yyyy-MM-dd'))) {
-    cursor = addDays(cursor, -1);
-  }
-  let streak = 0;
-  while (done.has(format(cursor, 'yyyy-MM-dd'))) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return streak;
-}
-
-/** Consecutive missed days ending today — 0 if today is already completed. */
-export function currentMissedStreak(logs: HabitLog[], createdAt: string): number {
-  const done = completedDateSet(logs);
-  const created = parseISO(createdAt);
-  if (done.has(todayStr())) return 0;
-  let streak = 0;
-  let cursor = new Date();
-  while (!done.has(format(cursor, 'yyyy-MM-dd')) && !isBefore(cursor, created)) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return streak;
-}
-
-/** Longest run of consecutive completed calendar days across all history. */
-export function longestStreak(logs: HabitLog[]): number {
-  const dates = [...completedDateSet(logs)]
-    .map((d) => parseISO(d))
-    .sort((a, b) => a.getTime() - b.getTime());
-  if (dates.length === 0) return 0;
-  let best = 1;
-  let run = 1;
-  for (let i = 1; i < dates.length; i++) {
-    if (differenceInCalendarDays(dates[i], dates[i - 1]) === 1) {
-      run += 1;
-    } else {
-      run = 1;
-    }
-    best = Math.max(best, run);
-  }
-  return best;
-}
-
-/**
- * Completion measured against the habit's own schedule — see
- * `periodCompletionPct`. A habit due twice a week is judged on weeks it hit,
- * not on days it happened to be idle.
- */
-export function completionPct(habit: Habit, logs: HabitLog[]): number {
-  return periodCompletionPct(habit, logs);
-}
-
-export interface WeeklyRollupPoint {
-  weekStart: string; // yyyy-MM-dd
-  completed: number;
-  daysElapsed: number; // days of that week that have already happened (max 7) — the real denominator
-}
-
-/**
- * Completion counts grouped by ISO week, oldest first. Rate should be
- * completed/daysElapsed, not completed/logged — a day with no tap has no
- * log at all (there's no stored completed:false), so completed and
- * logged counts are always equal, which would make every active week
- * read as 100%.
- */
-export function weeklyRollup(logs: HabitLog[]): WeeklyRollupPoint[] {
-  const byWeek = new Map<string, number>();
-  for (const log of logs) {
-    if (!log.completed) continue;
-    const weekStart = format(startOfISOWeek(parseISO(log.log_date)), 'yyyy-MM-dd');
-    byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + 1);
-  }
-  const today = new Date();
-  return [...byWeek.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([weekStart, completed]) => {
-      const start = parseISO(weekStart);
-      const weekEnd = addDays(start, 6);
-      const effectiveEnd = weekEnd < today ? weekEnd : today;
-      const daysElapsed = Math.max(1, differenceInCalendarDays(effectiveEnd, start) + 1);
-      return { weekStart, completed, daysElapsed };
-    });
-}
-
-export interface DayOfWeekStat {
-  dayName: string;
-  rate: number;
-}
-
-/**
- * Completion rate per day-of-week, over every occurrence of that weekday
- * since the habit was created (not just days with a log — a day with no
- * tap has no log at all, so counting only logged days would make every
- * day-of-week that has any activity read as 100%).
- */
-function dayOfWeekBreakdown(logs: HabitLog[], createdAt: string): DayOfWeekStat[] {
-  const done = completedDateSet(logs);
-  const created = parseISO(createdAt);
-  const totalDays = Math.max(1, differenceInCalendarDays(new Date(), created) + 1);
-
-  const byDay = new Map<number, { completed: number; occurrences: number }>();
-  for (let i = 0; i < totalDays; i++) {
-    const date = addDays(created, i);
-    const day = getDay(date);
-    const entry = byDay.get(day) ?? { completed: 0, occurrences: 0 };
-    entry.occurrences += 1;
-    if (done.has(format(date, 'yyyy-MM-dd'))) entry.completed += 1;
-    byDay.set(day, entry);
-  }
-
-  return [...byDay.entries()]
-    .filter(([, v]) => v.occurrences > 0)
-    .map(([day, v]) => ({ dayName: DAY_NAMES[day], rate: v.completed / v.occurrences }));
-}
-
-/** Day-of-week with the highest completion rate. */
-export function bestDayOfWeek(logs: HabitLog[], createdAt: string): DayOfWeekStat | null {
-  const stats = dayOfWeekBreakdown(logs, createdAt);
-  return stats.reduce<DayOfWeekStat | null>((best, s) => (!best || s.rate > best.rate ? s : best), null);
-}
-
-/** Day-of-week with the lowest completion rate. */
-export function worstDayOfWeek(logs: HabitLog[], createdAt: string): DayOfWeekStat | null {
-  const stats = dayOfWeekBreakdown(logs, createdAt);
-  return stats.reduce<DayOfWeekStat | null>((worst, s) => (!worst || s.rate < worst.rate ? s : worst), null);
 }
 
 function occurrencesOfWeekday(weekday: number, createdAt: string): number {
@@ -170,30 +37,40 @@ export interface HabitNudge {
 
 /**
  * A single forward-looking nudge line, prioritized:
- * 1. Currently on a 2+ day miss streak — the strongest warning, since this
+ * 1. Currently on a 2+ period miss streak — the strongest warning, since this
  *    is where a missed habit starts turning into a new (bad) habit.
- * 2. Missed just today/yesterday (streak of 1) — reassurance, not alarm.
- * 3. Otherwise (on track today), look ahead to tomorrow: if the last time
- *    this weekday came up it was missed, nudge before it repeats. Needs
- *    2+ past occurrences of that weekday so it's a pattern, not a fluke.
+ * 2. Missed just the one period — reassurance, not alarm.
+ * 3. Otherwise (on track), look ahead to tomorrow: if the last time this
+ *    weekday came up it was missed, nudge before it repeats. Needs 2+ past
+ *    occurrences of that weekday so it's a pattern, not a fluke.
+ *
+ * Counted in the habit's own periods. Measured in days, a habit due Mon/Thu
+ * was told it had "missed 3 days straight" every Wednesday, which is the
+ * single most visible place that lie showed up.
  */
-export function habitNudge(logs: HabitLog[], createdAt: string): HabitNudge | null {
-  const missedStreak = currentMissedStreak(logs, createdAt);
+export function habitNudge(habit: Habit, logs: HabitLog[]): HabitNudge | null {
+  const noun = periodNoun(habit);
+  const missedStreak = missedPeriodStreak(habit, logs);
   if (missedStreak >= 2) {
-    return { text: `Missed ${missedStreak} days straight — don't let it become the new habit.`, tone: 'warning' };
+    return { text: `Missed ${missedStreak} ${noun}s straight — don't let it become the new habit.`, tone: 'warning' };
   }
   if (missedStreak === 1) {
-    return { text: `One missed day is fine — just don't make it two in a row.`, tone: 'neutral' };
+    return { text: `One missed ${noun} is fine — just don't make it two in a row.`, tone: 'neutral' };
   }
 
   const done = completedDateSet(logs);
-  const created = parseISO(createdAt);
+  const created = parseISO(habit.created_at);
   const tomorrow = addDays(new Date(), 1);
   const tomorrowDay = getDay(tomorrow);
   const lastOccurrence = addDays(tomorrow, -7);
+  // Only worth saying if the habit is actually due tomorrow, and was due the
+  // last time this weekday came round — otherwise it's nagging about a day it
+  // was never asked to show up for.
+  if (!isDueOn(habit, tomorrow)) return null;
   if (isBefore(lastOccurrence, created)) return null;
+  if (!isDueOn(habit, lastOccurrence)) return null;
   if (done.has(format(lastOccurrence, 'yyyy-MM-dd'))) return null;
-  if (occurrencesOfWeekday(tomorrowDay, createdAt) < 2) return null;
+  if (occurrencesOfWeekday(tomorrowDay, habit.created_at) < 2) return null;
 
   return {
     text: `You missed last ${DAY_NAMES[tomorrowDay]} — don't miss it again this ${DAY_NAMES[tomorrowDay]}.`,
@@ -244,13 +121,16 @@ function ordinal(n: number): string {
 /**
  * Given month (default: current) split into 7-day chunks from day 1
  * (matches the user's spreadsheet's "Week 1/2/3/4/5" convention, not
- * calendar/ISO weeks). `goal` per day is total habit count — every habit
- * is expected daily, same convention as the Today screen's completed/
- * total ring. Only includes weeks that have started (no all-zero future
- * weeks for the current month; a fully past month includes every week).
+ * calendar/ISO weeks). Only includes weeks that have started (no all-zero
+ * future weeks for the current month; a fully past month includes every week).
+ *
+ * `goal` for a day is how many habits were actually *due* that day, not the
+ * total habit count. Counting every habit every day made anything less than
+ * daily look permanently behind, and credited days before a habit even
+ * existed with a goal it had no way to meet.
  */
 export function monthlyWeekBreakdown(
-  habitCount: number,
+  habits: Habit[],
   allLogs: HabitLog[],
   referenceDate: Date = new Date()
 ): WeekOfMonthPoint[] {
@@ -271,17 +151,20 @@ export function monthlyWeekBreakdown(
 
     const daysThisWeek = Math.min(7, daysInMonth - dayIdx);
     let completed = 0;
+    let weekGoal = 0;
     const days: DayOfWeekPoint[] = [];
     for (let d = 0; d < daysThisWeek; d++) {
       const date = addDays(monthStart, dayIdx + d);
       const dateStr = format(date, 'yyyy-MM-dd');
       const future = isAfter(date, today);
       const dayCompleted = future ? 0 : (completedByDate.get(dateStr) ?? 0);
+      const dayGoal = habits.filter((h) => isDueOn(h, date)).length;
       completed += dayCompleted;
-      days.push({ date: dateStr, label: format(date, 'EEE'), completed: dayCompleted, goal: habitCount, future });
+      weekGoal += dayGoal;
+      days.push({ date: dateStr, label: format(date, 'EEE'), completed: dayCompleted, goal: dayGoal, future });
     }
     const weekLabel = `${format(monthStart, 'MMM')} ${ordinal(dayIdx / 7 + 1)} week`;
-    weeks.push({ label: weekLabel, completed, goal: habitCount * daysThisWeek, days });
+    weeks.push({ label: weekLabel, completed, goal: weekGoal, days });
   }
   return weeks;
 }

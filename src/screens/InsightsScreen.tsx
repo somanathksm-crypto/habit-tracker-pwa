@@ -3,6 +3,7 @@ import { addDays, addMonths, format, getDaysInMonth, isAfter, isSameMonth, parse
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useData } from '../lib/store';
+import { isDueOn } from '../lib/habitSchedule';
 import { globalProgress, monthlyWeekBreakdown } from '../lib/stats';
 import { useSkiaStatus } from '../lib/useSkiaReady';
 import { colors } from '../theme';
@@ -17,8 +18,8 @@ export function InsightsScreen(_props: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const monthWeeks = useMemo(
-    () => monthlyWeekBreakdown(habits.length, habitLogs, selectedMonth),
-    [habits.length, habitLogs, selectedMonth]
+    () => monthlyWeekBreakdown(habits, habitLogs, selectedMonth),
+    [habits, habitLogs, selectedMonth]
   );
   const global = useMemo(() => globalProgress(habits, habitLogs), [habits, habitLogs]);
   const skiaStatus = useSkiaStatus();
@@ -42,13 +43,16 @@ export function InsightsScreen(_props: Props) {
       const dateStr = format(date, 'yyyy-MM-dd');
       const future = isAfter(date, today);
       const completed = future ? 0 : (completedByDate.get(dateStr) ?? 0);
+      // Denominator is what was due that day. A day nothing was scheduled for
+      // is not a 0% day — it has no rate at all, so the area simply skips it.
+      const due = habits.filter((h) => isDueOn(h, date)).length;
       return {
         day: i + 1,
         date: dateStr,
-        pct: future || habits.length === 0 ? null : Math.round((completed / habits.length) * 100),
+        pct: future || due === 0 ? null : Math.round((completed / due) * 100),
       };
     });
-  }, [habitLogs, habits.length, selectedMonth]);
+  }, [habitLogs, habits, selectedMonth]);
 
   // Index of the last day that actually has data — where the area chart
   // visually stops. Falls back to the last day of the month if every day

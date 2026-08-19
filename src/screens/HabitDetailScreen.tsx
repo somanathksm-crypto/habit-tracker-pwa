@@ -5,7 +5,13 @@ import { IconButton } from 'react-native-paper';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
 import { StatCard } from '../components/StatCard';
 import { useData } from '../lib/store';
-import { currentMissedStreak, currentStreak, longestStreak, monthlyWeekBreakdown } from '../lib/stats';
+import {
+  longestPeriodStreak,
+  missedPeriodStreak,
+  periodNoun,
+  periodStreak,
+} from '../lib/habitSchedule';
+import { monthlyWeekBreakdown } from '../lib/stats';
 import { colors } from '../theme';
 
 type Props = {
@@ -29,18 +35,32 @@ export function HabitDetailScreen({ route, navigation }: Props) {
 
   const logs = logsForHabit(habit.id);
   const accent = colors.accent;
-  const monthWeeks = monthlyWeekBreakdown(1, logs, viewMonth);
+  const monthWeeks = monthlyWeekBreakdown([habit], logs, viewMonth);
 
-  const chartData = monthWeeks.map((w, i) => ({
-    week: `Wk ${i + 1}`, // short form — w.label is now the longer "Aug 1st week" used in Insights
-    rate: w.goal > 0 ? Math.round((w.completed / w.goal) * 100) : 0,
-  }));
+  // A week's `goal` counts every day the habit is due, days still to come
+  // included — that's what Insights needs for its "Left" column. Here the
+  // question is what has actually been missed, so days that haven't happened
+  // yet are excluded: tomorrow's session isn't a miss.
+  const elapsedGoal = (w: (typeof monthWeeks)[number]) =>
+    w.days.reduce((sum, d) => sum + (d.future ? 0 : d.goal), 0);
+
+  const chartData = monthWeeks.map((w, i) => {
+    const due = elapsedGoal(w);
+    return {
+      week: `Wk ${i + 1}`, // short form — w.label is the longer "Aug 1st week" used in Insights
+      rate: due > 0 ? Math.round((w.completed / due) * 100) : 0,
+    };
+  });
 
   const monthCompleted = monthWeeks.reduce((sum, w) => sum + w.completed, 0);
-  const monthGoal = monthWeeks.reduce((sum, w) => sum + w.goal, 0);
-  const monthCompletionPct = monthGoal > 0 ? monthCompleted / monthGoal : 0;
-  const monthMissed = monthGoal - monthCompleted;
-  const missedStreak = currentMissedStreak(logs, habit.created_at);
+  const monthDue = monthWeeks.reduce((sum, w) => sum + elapsedGoal(w), 0);
+  const monthCompletionPct = monthDue > 0 ? monthCompleted / monthDue : 0;
+  const monthMissed = monthDue - monthCompleted;
+  const missedStreak = missedPeriodStreak(habit, logs);
+  // "day"/"week"/"date" — the stat labels have to name the habit's own period,
+  // since a Mon/Thu habit's streak counts weeks, not days.
+  const noun = periodNoun(habit);
+  const nounPlural = `${noun}s`;
 
   const confirmDelete = () => {
     Alert.alert('Delete habit?', `"${habit.name}" and all its history will be removed.`, [
@@ -71,33 +91,33 @@ export function HabitDetailScreen({ route, navigation }: Props) {
       <View style={styles.statsRow}>
         <StatCard
           label="Longest streak"
-          value={`${longestStreak(logs)}`}
+          value={`${longestPeriodStreak(habit, logs)}`}
           iconName="fire"
           iconColor={colors.longestStreak}
-          infoText="The longest run of consecutive days you've ever completed this habit, across its whole history."
+          infoText={`The longest run of consecutive ${nounPlural} you've ever completed this habit, across its whole history.`}
           style={{ marginRight: 10 }}
         />
         <StatCard
           label="Current streak"
-          value={`${currentStreak(logs)}`}
+          value={`${periodStreak(habit, logs)}`}
           iconName="fire"
           iconColor={colors.danger}
-          infoText="How many days in a row you've completed this habit, counting back from today."
+          infoText={`How many ${nounPlural} in a row you've completed this habit, counting back from now. The ${noun} in progress never breaks it.`}
           style={{ marginRight: 10 }}
         />
         <StatCard
           label="Completion"
           value={`${Math.round(monthCompletionPct * 100)}%`}
           fillPct={monthCompletionPct}
-          infoText="Days you completed this habit divided by days elapsed in the month you're viewing above."
+          infoText="Times you completed this habit divided by the times it was due, in the month you're viewing above."
         />
       </View>
 
       <View style={styles.statsRow}>
         <StatCard
-          label="Missed days"
+          label="Missed"
           value={`${monthMissed}`}
-          infoText="Days you have missed in this month."
+          infoText={`Times this habit was due in the month you're viewing but wasn't done.`}
           style={{ flex: 2, marginRight: 10 }}
         />
         <StatCard
@@ -105,7 +125,7 @@ export function HabitDetailScreen({ route, navigation }: Props) {
           value={`${missedStreak}`}
           iconName="emoticon-sad-outline"
           iconColor={colors.danger}
-          infoText="How many days in a row you've missed this habit, counting back from today. Zero means today is already done."
+          infoText={`Finished ${nounPlural} in a row you've missed, ending with the most recent one. Zero once the current ${noun} is done — a ${noun} still in progress isn't counted as missed.`}
         />
       </View>
 

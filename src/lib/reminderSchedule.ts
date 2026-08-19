@@ -1,12 +1,19 @@
-import { addDays, addMonths, format, isAfter, setDate, startOfDay } from 'date-fns';
-import type { HabitLog, HabitReminder } from '../types';
+import { addDays, format, isAfter, startOfDay } from 'date-fns';
+import { isDueOn, progressFor } from './habitSchedule';
+import type { Habit, HabitLog, HabitReminder } from '../types';
 
 /**
- * How many future firings we work out per reminder before the global cap is
- * applied. Sized so the buffer is sensible whatever the repeat rule is:
- * 14 days for a daily alarm, 14 weeks for a weekly one, 14 months for monthly.
+ * How far ahead firing times are worked out, as a span of days rather than a
+ * count of firings.
+ *
+ * A firing count gives a habit due twice a week the same buffer in *alarms* as
+ * a daily one, which is a quarter of the buffer in days — exactly backwards,
+ * since the sparse habit is the one whose next alarm is furthest away. The
+ * global cap below takes the soonest alarms across every reminder, so a
+ * generous span costs nothing when the queue is busy and buys real buffer when
+ * it isn't.
  */
-const PER_REMINDER_LOOKAHEAD = 14;
+const LOOKAHEAD_DAYS = 60;
 
 /**
  * Total alarms handed to the OS.
@@ -41,98 +48,81 @@ function at(day: Date, hour: number, minute: number): Date {
 }
 
 /**
- * Future firing times for one reminder, earliest first. Only dates strictly
+ * Future firing times for one reminder, earliest first. Only times strictly
  * after `from` are returned, so an alarm never lands in the past.
+ *
+ * The *days* come from the habit's own schedule: a reminder is a time of day,
+ * not a rule of its own. A habit due Mon/Thu therefore cannot be nagged on a
+ * Tuesday, and a habit whose custom dates have all passed stops ringing by
+ * itself.
  */
-export function occurrencesFor(reminder: HabitReminder, from: Date): Date[] {
+export function occurrencesFor(habit: Habit, reminder: HabitReminder, from: Date): Date[] {
   const parsed = parseTime(reminder.time);
   if (!parsed) return [];
   const { hour, minute } = parsed;
-  const repeat = reminder.repeat;
+
   const out: Date[] = [];
-
-  if (repeat.kind === 'once') {
-    const [y, m, d] = repeat.date.split('-').map(Number);
-    if (!y || !m || !d) return [];
-    const when = at(new Date(y, m - 1, d), hour, minute);
-    return isAfter(when, from) ? [when] : [];
-  }
-
-  if (repeat.kind === 'daily') {
-    let day = startOfDay(from);
-    while (out.length < PER_REMINDER_LOOKAHEAD) {
-      const when = at(day, hour, minute);
-      if (isAfter(when, from)) out.push(when);
-      day = addDays(day, 1);
-    }
-    return out;
-  }
-
-  if (repeat.kind === 'weekly') {
-    if (repeat.weekdays.length === 0) return [];
-    const wanted = new Set(repeat.weekdays);
-    let day = startOfDay(from);
-    // Bounded by lookahead weeks so an empty/odd rule can't spin forever.
-    for (let i = 0; i < PER_REMINDER_LOOKAHEAD * 7 + 7; i += 1) {
-      if (out.length >= PER_REMINDER_LOOKAHEAD) break;
-      if (wanted.has(day.getDay())) {
-        const when = at(day, hour, minute);
-        if (isAfter(when, from)) out.push(when);
-      }
-      day = addDays(day, 1);
-    }
-    return out;
-  }
-
-  // monthly — day is capped at 28 on input so it exists in every month
-  let month = startOfDay(from);
-  for (let i = 0; i < PER_REMINDER_LOOKAHEAD + 1; i += 1) {
-    if (out.length >= PER_REMINDER_LOOKAHEAD) break;
-    const when = at(setDate(month, repeat.day), hour, minute);
-    if (isAfter(when, from)) out.push(when);
-    month = addMonths(startOfDay(setDate(month, 1)), 1);
+  let day = startOfDay(from);
+  for (let i = 0; i <= LOOKAHEAD_DAYS; i += 1) {
+    const when = at(day, hour, minute);
+    if (isAfter(when, from) && isDueOn(habit, day)) out.push(when);
+    day = addDays(day, 1);
   }
   return out;
+}
+
+/** Logs grouped by habit, since the schedule helpers take one habit's logs. */
+function groupLogs(habitLogs: HabitLog[]): Map<string, HabitLog[]> {
+  const byHabit = new Map<string, HabitLog[]>();
+  for (const log of habitLogs) {
+    const existing = byHabit.get(log.habit_id);
+    if (existing) existing.push(log);
+    else byHabit.set(log.habit_id, [log]);
+  }
+  return byHabit;
 }
 
 /**
  * Every alarm that should currently be registered with the OS, earliest first
  * and capped at [MAX_SCHEDULED].
  *
- * Alarms are skipped for any day the habit is already completed — that is the
- * whole reason firings are computed here rather than handed to the OS as a
- * repeating trigger, since a repeating trigger can't skip a single day. This
- * applies to one-off reminders too: being already done is reason enough not to
- * be nagged, whatever the repeat rule.
+ * Alarms are skipped once there's nothing left to ask for — which is the whole
+ * reason firings are computed here rather than handed to the OS as a repeating
+ * trigger, since a repeating trigger can't skip a single occurrence. Two
+ * separate conditions, and both are needed:
+ *
+ * - **that date is already done** — the plain case, and the only one that
+ *   catches a custom-date habit ticked earlier the same day, whose period
+ *   spans every date still to come and so isn't satisfied by one of them.
+ * - **the period containing it is already satisfied** — so "any 2 days a week"
+ *   rings daily until the second is ticked and then goes quiet for the rest of
+ *   the week, rather than nagging through a week it has already met.
  */
 export function plannedOccurrences(
+  habits: Habit[],
   reminders: HabitReminder[],
   habitLogs: HabitLog[],
   from: Date = new Date(),
   limit: number = MAX_SCHEDULED_IOS
 ): Occurrence[] {
-  const completed = new Set(
-    habitLogs.filter((l) => l.completed).map((l) => `${l.habit_id}|${l.log_date}`)
-  );
+  const habitsById = new Map(habits.map((h) => [h.id, h]));
+  const logsByHabit = groupLogs(habitLogs);
 
   const all: Occurrence[] = [];
   for (const reminder of reminders) {
-    for (const date of occurrencesFor(reminder, from)) {
-      if (completed.has(`${reminder.habit_id}|${format(date, 'yyyy-MM-dd')}`)) continue;
+    const habit = habitsById.get(reminder.habit_id);
+    // A reminder can outlive its habit if data was edited oddly — drop it.
+    if (!habit) continue;
+
+    const logs = logsByHabit.get(habit.id) ?? [];
+    const done = new Set(logs.filter((l) => l.completed).map((l) => l.log_date));
+
+    for (const date of occurrencesFor(habit, reminder, from)) {
+      if (done.has(format(date, 'yyyy-MM-dd'))) continue;
+      if (progressFor(habit, logs, date).satisfied) continue;
       all.push({ reminder, date });
     }
   }
 
   return all.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, limit);
-}
-
-/** Human-readable summary of a repeat rule, for the reminder list. */
-export function describeRepeat(reminder: HabitReminder): string {
-  const repeat = reminder.repeat;
-  if (repeat.kind === 'daily') return 'Every day';
-  if (repeat.kind === 'once') return `Once on ${repeat.date}`;
-  if (repeat.kind === 'monthly') return `Monthly on day ${repeat.day}`;
-  if (repeat.weekdays.length === 0) return 'No days picked';
-  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return [...repeat.weekdays].sort().map((d) => names[d]).join(', ');
 }

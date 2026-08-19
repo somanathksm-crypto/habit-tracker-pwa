@@ -25,7 +25,7 @@ export function HabitToggleCard({
   onPress,
   onEditAlarms,
 }: Props) {
-  const nudge = habitNudge(logs, habit.created_at);
+  const nudge = habitNudge(habit, logs);
 
   return (
     <Pressable style={styles.card} onPress={onPress}>

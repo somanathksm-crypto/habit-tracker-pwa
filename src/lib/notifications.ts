@@ -137,10 +137,8 @@ async function runSync(
   await ensureNotificationCategory();
 
   const habitsById = new Map(habits.map((h) => [h.id, h]));
-  // A reminder can outlive its habit if data was edited oddly — drop rather than crash.
-  const live = reminders.filter((r) => habitsById.has(r.habit_id));
   const cap = Platform.OS === 'ios' ? MAX_SCHEDULED_IOS : MAX_SCHEDULED_ANDROID;
-  const planned = plannedOccurrences(live, habitLogs, new Date(), cap);
+  const planned = plannedOccurrences(habits, reminders, habitLogs, new Date(), cap);
 
   const wanted = new Map(planned.map((o) => [alarmId(o.reminder.id, o.date), o]));
   const have = new Set(ours.map((r) => r.identifier));

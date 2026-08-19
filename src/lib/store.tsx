@@ -94,8 +94,6 @@ interface DataContextValue extends StoredState {
 function migrate(state: StoredState): StoredState {
   return {
     ...state,
-    // Reminders predate repeat rules and were implicitly every day.
-    reminders: state.reminders.map((r) => (r.repeat ? r : { ...r, repeat: { kind: 'daily' as const } })),
     // Habits predate schedules and were all once a day.
     habits: state.habits.map((h) => (h.schedule ? h : { ...h, schedule: { ...DEFAULT_SCHEDULE } })),
   };
@@ -386,10 +384,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         state.reminders.filter((r) => r.habit_id === habitId).sort((a, b) => a.time.localeCompare(b.time)),
       setRemindersForHabit: (habitId, next) => {
         setState((s) => {
-          // Identical time + repeat would just fire two of the same alarm.
+          // Two alarms at the same time would just fire twice.
           const seen = new Set<string>();
           const deduped = next.filter((r) => {
-            const key = `${r.time}|${JSON.stringify(r.repeat)}`;
+            const key = r.time;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;

@@ -30,23 +30,17 @@ export interface Habit {
 }
 
 /**
- * When a reminder repeats. `weekdays` uses 0=Sunday…6=Saturday.
- * `monthly.day` is capped at 28 so it exists in every month.
+ * One alarm for a habit — just a time of day.
+ *
+ * Which days it rings on comes from the habit's own `schedule`, not from the
+ * reminder. Two competing notions of when a habit happens meant a Mon/Thu
+ * habit could be given a daily alarm and nag on days the grid correctly showed
+ * it was never due.
  */
-export type ReminderRepeat =
-  | { kind: 'daily' }
-  | { kind: 'weekly'; weekdays: number[] }
-  | { kind: 'monthly'; day: number }
-  | { kind: 'once'; date: string }; // 'yyyy-MM-dd'
-
-export const MAX_MONTHLY_DAY = 28;
-
-/** One alarm for a habit. A habit can have as many as the user wants. */
 export interface HabitReminder {
   id: string;
   habit_id: string;
   time: string; // 'HH:mm', 24-hour, local device time
-  repeat: ReminderRepeat;
 }
 
 export interface HabitLog {

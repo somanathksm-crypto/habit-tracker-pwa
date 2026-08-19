@@ -24,7 +24,7 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
   // Held locally until save — a new habit has no id to attach reminders to yet.
   const [reminders, setReminders] = useState<ReminderDraft[]>(
     existing
-      ? remindersForHabit(existing.id).map((r) => ({ time: r.time, repeat: r.repeat }))
+      ? remindersForHabit(existing.id).map((r) => ({ time: r.time }))
       : []
   );
 
@@ -36,7 +36,7 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
     setReminders((rs) => rs.filter((_, i) => i !== index));
 
   const addReminder = async () => {
-    setReminders((rs) => [...rs, { time: '09:00', repeat: { kind: 'daily' } }]);
+    setReminders((rs) => [...rs, { time: '09:00' }]);
     // Ask the first time a reminder is added, rather than at app launch.
     if (notificationsSupported && reminders.length === 0) {
       const granted = await requestNotificationPermission();
