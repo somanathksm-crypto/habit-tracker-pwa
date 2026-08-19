@@ -2,23 +2,37 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { habitNudge } from '../lib/stats';
 import { colors } from '../theme';
-import type { Habit, HabitLog } from '../types';
+import type { Habit, HabitLog, HabitReminder } from '../types';
+import { AlarmBadge } from './AlarmBadge';
 import { WeekStrip } from './WeekStrip';
 
 interface Props {
   habit: Habit;
   logs: HabitLog[];
   streak: number;
+  reminders: HabitReminder[];
   onToggleDay: (dateStr: string) => void;
   onPress: () => void;
+  onEditAlarms: () => void;
 }
 
-export function HabitToggleCard({ habit, logs, streak, onToggleDay, onPress }: Props) {
+export function HabitToggleCard({
+  habit,
+  logs,
+  streak,
+  reminders,
+  onToggleDay,
+  onPress,
+  onEditAlarms,
+}: Props) {
   const nudge = habitNudge(logs, habit.created_at);
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <Text style={styles.name}>{habit.name}</Text>
+      <View style={styles.nameRow}>
+        <Text style={styles.name}>{habit.name}</Text>
+        <AlarmBadge reminders={reminders} onPress={onEditAlarms} showTime />
+      </View>
       <View style={styles.metaRow}>
         <WeekStrip logs={logs} createdAt={habit.created_at} onToggleDay={onToggleDay} />
         {streak > 0 && (
@@ -46,7 +60,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  name: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 10 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  name: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.text },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
   streakChip: {
     flexDirection: 'row',

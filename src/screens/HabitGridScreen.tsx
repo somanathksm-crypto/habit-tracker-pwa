@@ -4,6 +4,7 @@ import { addDays, format, isAfter, isBefore, isSameDay, parseISO, startOfDay, st
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
+import { AlarmBadge } from '../components/AlarmBadge';
 import { useData } from '../lib/store';
 import { currentStreak } from '../lib/stats';
 import { colors } from '../theme';
@@ -19,7 +20,7 @@ type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
  * the app, only today can actually be toggled — past days are history.
  */
 export function HabitGridScreen({ navigation }: Props) {
-  const { habits, habitLogs, toggleHabitLog, logsForHabit } = useData();
+  const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -76,6 +77,7 @@ export function HabitGridScreen({ navigation }: Props) {
           <View style={styles.card}>
             <View style={styles.headRow}>
               <Text style={styles.headName}>Habit</Text>
+              <View style={styles.bellSpacer} />
               <View style={styles.streakSlot} />
               <View style={styles.days}>
                 {weekDates.map((date, i) => (
@@ -106,6 +108,10 @@ export function HabitGridScreen({ navigation }: Props) {
                       {habit.name}
                     </Text>
                   </Pressable>
+                  <AlarmBadge
+                    reminders={remindersForHabit(habit.id)}
+                    onPress={() => navigation.navigate('AddEditHabit', { habitId: habit.id })}
+                  />
                   {/* Fixed slot, kept even at streak 0, so names can never
                       run into the fire and every row stays aligned. */}
                   <View style={styles.streakSlot}>
@@ -166,8 +172,11 @@ export function HabitGridScreen({ navigation }: Props) {
 
 const BOX = 23;
 const COL = 26;
-const NAME_W = 114;
-const STREAK_W = 32;
+// name + bell slot + streak slot + 7 day columns must equal the card's inner
+// width (328 on a 375px phone), or the header letters drift off the boxes.
+const NAME_W = 100;
+const BELL_W = 18;
+const STREAK_W = 28;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -218,6 +227,7 @@ const styles = StyleSheet.create({
     color: colors.textMedium,
     lineHeight: 18,
   },
+  bellSpacer: { width: BELL_W, minWidth: BELL_W },
   streakSlot: {
     width: STREAK_W,
     minWidth: STREAK_W,

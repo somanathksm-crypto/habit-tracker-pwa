@@ -14,7 +14,7 @@ import type { TodayStackParamList } from '../navigation/types';
 type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 
 export function TodayScreen({ navigation }: Props) {
-  const { habits, habitLogs, toggleHabitLog, logsForHabit } = useData();
+  const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
   const today = todayStr();
 
   const doneCount = habits.filter((h) =>
@@ -66,8 +66,10 @@ export function TodayScreen({ navigation }: Props) {
                     habit={habit}
                     logs={logsForHabit(habit.id)}
                     streak={currentStreak(logsForHabit(habit.id))}
+                    reminders={remindersForHabit(habit.id)}
                     onToggleDay={(dateStr) => toggleHabitLog(habit.id, dateStr)}
                     onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}
+                    onEditAlarms={() => navigation.navigate('AddEditHabit', { habitId: habit.id })}
                   />
                 ))}
               </View>
