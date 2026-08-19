@@ -9,13 +9,16 @@ import type { HabitLog, HabitReminder } from '../types';
 const PER_REMINDER_LOOKAHEAD = 14;
 
 /**
- * Total alarms handed to the OS. iOS silently drops anything past 64 pending
- * notifications; Android's ceiling is far higher (hundreds of pending
- * intents), and since the queue size is what determines how long the app can
- * go unopened before alarms run dry, it's worth using that headroom.
+ * Total alarms handed to the OS.
+ *
+ * A bigger queue buys more days of buffer for an app that goes unopened, at
+ * the cost of a slower first sync (every entry is a separate call into the OS).
+ * Syncing only ever adds what's missing now, so a slow first fill is no longer
+ * dangerous — but it is still work, hence not unbounded. iOS is capped lower
+ * because it silently drops anything past 64 pending notifications.
  */
-export const MAX_SCHEDULED_IOS = 60;
-export const MAX_SCHEDULED_ANDROID = 200;
+export const MAX_SCHEDULED_IOS = 50;
+export const MAX_SCHEDULED_ANDROID = 100;
 
 export interface Occurrence {
   reminder: HabitReminder;

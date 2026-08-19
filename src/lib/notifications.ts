@@ -81,7 +81,36 @@ export async function hasNotificationPermission(): Promise<boolean> {
  *
  * Returns how many alarms are now scheduled.
  */
-export async function syncScheduledReminders(
+/** Stable per-alarm id, so the same firing always maps to the same OS entry. */
+function alarmId(reminderId: string, date: Date): string {
+  return `alarm:${reminderId}:${date.getTime()}`;
+}
+
+/** Only alarms we own, so a snoozed or test notification is never touched. */
+function isOurAlarmId(id: string): boolean {
+  return id.startsWith('alarm:');
+}
+
+/**
+ * Serialises syncs. Two runs overlapping used to be able to undo each other's
+ * work — one cancelling what the other had just scheduled — leaving an
+ * unpredictable number of alarms registered.
+ */
+let syncChain: Promise<number> = Promise.resolve(0);
+
+export function syncScheduledReminders(
+  habits: Habit[],
+  reminders: HabitReminder[],
+  habitLogs: HabitLog[],
+  enabled: boolean
+): Promise<number> {
+  syncChain = syncChain
+    .catch(() => 0)
+    .then(() => runSync(habits, reminders, habitLogs, enabled));
+  return syncChain;
+}
+
+async function runSync(
   habits: Habit[],
   reminders: HabitReminder[],
   habitLogs: HabitLog[],
@@ -89,10 +118,16 @@ export async function syncScheduledReminders(
 ): Promise<number> {
   if (!notificationsSupported) return 0;
 
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  if (!enabled) return 0;
+  const existing = await Notifications.getAllScheduledNotificationsAsync();
+  const ours = existing.filter((r) => isOurAlarmId(r.identifier));
 
-  if (!(await hasNotificationPermission())) return 0;
+  if (!enabled || !(await hasNotificationPermission())) {
+    for (const request of ours) {
+      await Notifications.cancelScheduledNotificationAsync(request.identifier);
+    }
+    return 0;
+  }
+
   await ensureAlarmChannel();
   await ensureNotificationCategory();
 
@@ -101,13 +136,26 @@ export async function syncScheduledReminders(
   const live = reminders.filter((r) => habitsById.has(r.habit_id));
   const cap = Platform.OS === 'ios' ? MAX_SCHEDULED_IOS : MAX_SCHEDULED_ANDROID;
   const planned = plannedOccurrences(live, habitLogs, new Date(), cap);
-  let scheduled = 0;
 
-  for (const { reminder, date } of planned) {
+  const wanted = new Map(planned.map((o) => [alarmId(o.reminder.id, o.date), o]));
+  const have = new Set(ours.map((r) => r.identifier));
+
+  // Deliberately a diff rather than cancel-everything-then-rebuild. Wiping the
+  // lot first leaves a window where the app owns no alarms at all, and if it is
+  // closed mid-rebuild (or the phone kills it) they simply stay gone.
+  for (const request of ours) {
+    if (!wanted.has(request.identifier)) {
+      await Notifications.cancelScheduledNotificationAsync(request.identifier);
+    }
+  }
+
+  for (const [id, { reminder, date }] of wanted) {
+    if (have.has(id)) continue;
     const habit = habitsById.get(reminder.habit_id);
     if (!habit) continue;
 
     await Notifications.scheduleNotificationAsync({
+      identifier: id,
       content: {
         title: habit.name,
         body: `Time for ${habit.name}`,
@@ -130,10 +178,9 @@ export async function syncScheduledReminders(
         channelId: ALARM_CHANNEL_ID,
       },
     });
-    scheduled += 1;
   }
 
-  return scheduled;
+  return wanted.size;
 }
 
 export async function countScheduled(): Promise<number> {

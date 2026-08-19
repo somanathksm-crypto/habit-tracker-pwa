@@ -166,12 +166,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // completing a habit should drop its pending alarm for that day.
   useEffect(() => {
     if (loading) return;
-    syncScheduledReminders(
-      state.habits,
-      state.reminders,
-      state.habitLogs,
-      state.remindersEnabled
-    ).catch(() => {});
+    // Debounced: ticking several habits in a row should settle into one sync
+    // rather than firing one per tap.
+    const timer = setTimeout(() => {
+      syncScheduledReminders(
+        state.habits,
+        state.reminders,
+        state.habitLogs,
+        state.remindersEnabled
+      ).catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
   }, [state.habits, state.reminders, state.habitLogs, state.remindersEnabled, loading]);
 
   const value = useMemo<DataContextValue>(
