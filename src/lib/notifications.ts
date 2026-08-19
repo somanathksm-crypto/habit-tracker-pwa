@@ -1,20 +1,16 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { ensureNotificationCategory } from './notificationActions';
+import {
+  ALARM_CATEGORY_ID,
+  ALARM_CHANNEL_ID,
+  VIBRATION_PATTERN,
+  notificationsSupported,
+} from './notificationConstants';
 import { MAX_SCHEDULED_ANDROID, MAX_SCHEDULED_IOS, plannedOccurrences } from './reminderSchedule';
 import type { Habit, HabitLog, HabitReminder } from '../types';
 
-export const ALARM_CHANNEL_ID = 'habit-alarms';
-
-/** Long buzz-pause-buzz, so it reads as an alarm rather than a passing ping. */
-const VIBRATION_PATTERN = [0, 700, 400, 700, 400, 700];
-
-/**
- * Reminders are local scheduled notifications — no server involved. They only
- * exist on native; the web build keeps the same settings UI but every call
- * here is a no-op, since browsers can't schedule anything without push
- * infrastructure.
- */
-export const notificationsSupported = Platform.OS !== 'web';
+export { ALARM_CHANNEL_ID, notificationsSupported };
 
 /** Foreground behaviour: an alarm should still be seen and heard if the app is open. */
 export function configureNotificationHandler() {
@@ -98,6 +94,7 @@ export async function syncScheduledReminders(
 
   if (!(await hasNotificationPermission())) return 0;
   await ensureAlarmChannel();
+  await ensureNotificationCategory();
 
   const habitsById = new Map(habits.map((h) => [h.id, h]));
   // A reminder can outlive its habit if data was edited oddly — drop rather than crash.
@@ -122,7 +119,10 @@ export async function syncScheduledReminders(
         sticky: true,
         autoDismiss: false,
         interruptionLevel: 'timeSensitive',
-        data: { habitId: habit.id, reminderId: reminder.id },
+        categoryIdentifier: ALARM_CATEGORY_ID,
+        // habitName rides along so a snooze fired from the background context
+        // can rebuild the alarm without reading stored state.
+        data: { habitId: habit.id, habitName: habit.name, reminderId: reminder.id },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,

@@ -1,9 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addDays, format, subDays } from 'date-fns';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { STARTER_HABITS } from './starterHabits';
 import { expectedWeightOn } from './stats';
 import { syncScheduledReminders } from './notifications';
+import { addForegroundActionListener, drainActionQueue } from './notificationActions';
+import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
 import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitReminder, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
@@ -111,6 +114,52 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
   }, [state, loading]);
+
+  // "Done" pressed on an alarm queues a tick from a background context that has
+  // no access to this state. Apply anything waiting, on launch and whenever the
+  // app comes back to the foreground.
+  const applyPendingActions = useCallback(async () => {
+    const pending = await drainActionQueue();
+    if (pending.length === 0) return;
+    setState((s) => {
+      let habitLogs = s.habitLogs;
+      for (const action of pending) {
+        if (action.type !== 'complete') continue;
+        const existing = habitLogs.find(
+          (l) => l.habit_id === action.habitId && l.log_date === action.date
+        );
+        // Set rather than toggle: the same press must not undo itself if it
+        // somehow gets applied twice.
+        if (existing) {
+          if (!existing.completed) {
+            habitLogs = habitLogs.map((l) => (l.id === existing.id ? { ...l, completed: true } : l));
+          }
+        } else {
+          habitLogs = [
+            ...habitLogs,
+            { id: uid(), habit_id: action.habitId, log_date: action.date, completed: true },
+          ];
+        }
+      }
+      return habitLogs === s.habitLogs ? s : { ...s, habitLogs };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    registerBackgroundNotificationTask();
+    applyPendingActions().catch(() => {});
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') applyPendingActions().catch(() => {});
+    });
+    const removeActionListener = addForegroundActionListener(() => {
+      applyPendingActions().catch(() => {});
+    });
+    return () => {
+      sub.remove();
+      removeActionListener();
+    };
+  }, [loading, applyPendingActions]);
 
   // Keep the OS alarm schedule in step with stored state. Habits are a
   // dependency because renaming one changes its alarm text; habitLogs because
