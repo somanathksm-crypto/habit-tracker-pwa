@@ -76,6 +76,7 @@ export function HabitGridScreen({ navigation }: Props) {
           <View style={styles.card}>
             <View style={styles.headRow}>
               <Text style={styles.headName}>Habit</Text>
+              <View style={styles.streakSlot} />
               <View style={styles.days}>
                 {weekDates.map((date, i) => (
                   <View key={i} style={styles.dayCol}>
@@ -104,13 +105,17 @@ export function HabitGridScreen({ navigation }: Props) {
                     <Text style={styles.habitName} numberOfLines={2}>
                       {habit.name}
                     </Text>
+                  </Pressable>
+                  {/* Fixed slot, kept even at streak 0, so names can never
+                      run into the fire and every row stays aligned. */}
+                  <View style={styles.streakSlot}>
                     {streak > 0 && (
-                      <View style={styles.streak}>
+                      <>
                         <Text style={styles.streakEmoji}>🔥</Text>
                         <Text style={styles.streakText}>{streak}</Text>
-                      </View>
+                      </>
                     )}
-                  </Pressable>
+                  </View>
                   <View style={styles.days}>
                     {weekDates.map((date, i) => {
                       const dateStr = format(date, 'yyyy-MM-dd');
@@ -159,9 +164,10 @@ export function HabitGridScreen({ navigation }: Props) {
   );
 }
 
-const BOX = 25;
-const COL = 28;
-const NAME_W = 132;
+const BOX = 23;
+const COL = 26;
+const NAME_W = 114;
+const STREAK_W = 32;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -204,18 +210,23 @@ const styles = StyleSheet.create({
   },
   dayLetterToday: { color: colors.accent },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
-  nameWrap: { width: NAME_W, minWidth: NAME_W, flexDirection: 'row', alignItems: 'center' },
+  nameWrap: { width: NAME_W, minWidth: NAME_W, paddingRight: 6 },
   habitName: {
-    flex: 1,
+    width: '100%',
     fontSize: 14,
     fontWeight: '600',
     color: colors.textMedium,
     lineHeight: 18,
-    paddingRight: 6,
   },
-  streak: { flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
-  streakEmoji: { fontSize: 12, marginRight: 2 },
-  streakText: { fontSize: 13, fontWeight: '700', color: colors.clay, minWidth: 14 },
+  streakSlot: {
+    width: STREAK_W,
+    minWidth: STREAK_W,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  streakEmoji: { fontSize: 11, marginRight: 1 },
+  streakText: { fontSize: 12, fontWeight: '700', color: colors.clay, minWidth: 16 },
   box: {
     width: BOX,
     height: BOX,
