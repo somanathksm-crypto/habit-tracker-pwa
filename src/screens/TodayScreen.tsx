@@ -1,8 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { FAB, TextInput } from 'react-native-paper';
+import { FAB } from 'react-native-paper';
 import { HabitToggleCard } from '../components/HabitToggleCard';
 import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
@@ -14,11 +14,9 @@ import type { TodayStackParamList } from '../navigation/types';
 type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 
 export function TodayScreen({ navigation }: Props) {
-  const { habits, habitLogs, weightLogs, toggleHabitLog, upsertWeightLog, logsForHabit } = useData();
-  const [weightInput, setWeightInput] = useState('');
+  const { habits, habitLogs, toggleHabitLog, logsForHabit } = useData();
   const today = todayStr();
 
-  const todaysWeight = weightLogs.find((w) => w.log_date === today);
   const doneCount = habits.filter((h) =>
     habitLogs.some((l) => l.habit_id === h.id && l.log_date === today && l.completed)
   ).length;
@@ -31,14 +29,6 @@ export function TodayScreen({ navigation }: Props) {
   }, [habits]);
 
   const allDone = habits.length > 0 && doneCount === habits.length;
-
-  const saveWeight = () => {
-    const val = parseFloat(weightInput);
-    if (!Number.isNaN(val) && val > 0) {
-      upsertWeightLog(today, val);
-      setWeightInput('');
-    }
-  };
 
   return (
     <View style={styles.screen}>
@@ -84,31 +74,6 @@ export function TodayScreen({ navigation }: Props) {
             </View>
           ))
         )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Weight</Text>
-          <View style={styles.weightCard}>
-            {todaysWeight ? (
-              <Text style={styles.weightLogged}>Logged today: {todaysWeight.value} kg</Text>
-            ) : (
-              <>
-                <TextInput
-                  mode="outlined"
-                  placeholder="Log today's weight (kg)"
-                  keyboardType="decimal-pad"
-                  value={weightInput}
-                  onChangeText={setWeightInput}
-                  onSubmitEditing={saveWeight}
-                  style={styles.weightInput}
-                  dense
-                  right={
-                    weightInput ? <TextInput.Icon icon="check" onPress={saveWeight} /> : undefined
-                  }
-                />
-              </>
-            )}
-          </View>
-        </View>
       </ScrollView>
 
       <FAB
@@ -141,14 +106,5 @@ const styles = StyleSheet.create({
   section: { gap: 8, marginTop: 8 },
   sectionHeader: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.4, textTransform: 'uppercase' },
   cardList: { gap: 8 },
-  weightCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 4,
-  },
-  weightInput: { backgroundColor: colors.surface },
-  weightLogged: { padding: 12, fontSize: 14, color: colors.text, fontWeight: '500' },
   fab: { position: 'absolute', right: 16, bottom: 20, backgroundColor: colors.accent },
 });
