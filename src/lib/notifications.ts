@@ -221,10 +221,23 @@ export async function nextScheduledAlarm(): Promise<Date | null> {
   return soonest === null ? null : new Date(soonest);
 }
 
-/** Fires a one-off alarm shortly, to check alarms survive on this device. */
-export async function scheduleTestAlarm(seconds = 60): Promise<boolean> {
-  if (!notificationsSupported) return false;
-  if (!(await requestNotificationPermission())) return false;
+export interface TestAlarmResult {
+  ok: boolean;
+  reason?: 'unsupported' | 'permission' | 'not-queued';
+  /** Read back from the OS, so it reflects what will really happen. */
+  firesAt?: Date;
+  queued?: number;
+}
+
+/**
+ * Fires a one-off alarm shortly, to check alarms survive on this device.
+ * Reads the queue back afterwards: "it didn't ring" is ambiguous between never
+ * being scheduled and being scheduled then killed, and those need different
+ * fixes.
+ */
+export async function scheduleTestAlarm(seconds = 60): Promise<TestAlarmResult> {
+  if (!notificationsSupported) return { ok: false, reason: 'unsupported' };
+  if (!(await requestNotificationPermission())) return { ok: false, reason: 'permission' };
   await ensureAlarmChannel();
   await ensureNotificationCategory();
   await Notifications.scheduleNotificationAsync({
@@ -246,5 +259,14 @@ export async function scheduleTestAlarm(seconds = 60): Promise<boolean> {
       channelId: ALARM_CHANNEL_ID,
     },
   });
-  return true;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const test = scheduled.find((r) => (r.content?.data as { test?: boolean })?.test === true);
+  if (!test) return { ok: false, reason: 'not-queued', queued: scheduled.length };
+
+  return {
+    ok: true,
+    firesAt: new Date(Date.now() + seconds * 1000),
+    queued: scheduled.length,
+  };
 }

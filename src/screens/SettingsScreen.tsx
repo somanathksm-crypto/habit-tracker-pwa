@@ -56,13 +56,28 @@ export function SettingsScreen() {
   }, [reminders, remindersEnabled, refreshKey]);
 
   const runTestAlarm = async () => {
-    const ok = await scheduleTestAlarm(60);
+    // 20s rather than a minute — long enough to lock the screen, short enough
+    // that a failed test doesn't cost a minute of waiting each time.
+    const result = await scheduleTestAlarm(20);
     setRefreshKey((k) => k + 1);
+
+    if (!result.ok) {
+      Alert.alert(
+        'Could not set a test alarm',
+        result.reason === 'permission'
+          ? 'Notification permission is off. Turn on Habit alarms first.'
+          : result.reason === 'not-queued'
+            ? `The phone accepted the alarm but did not queue it (${result.queued ?? 0} queued). That points at the phone blocking scheduled alarms rather than a problem in the app.`
+            : 'Alarms are not available on this device.'
+      );
+      return;
+    }
+
     Alert.alert(
-      ok ? 'Test alarm set' : 'Could not set a test alarm',
-      ok
-        ? 'It should ring in about a minute. Swipe the app away from recents now — if it does not ring, your phone is killing the app and the fix is in battery settings, not the app.'
-        : 'Notification permission is off. Turn on Habit alarms first.'
+      'Test alarm queued',
+      `The phone has it and will ring at ${format(result.firesAt!, 'h:mm:ss a')}.\n\n` +
+        `${result.queued} alarm${result.queued === 1 ? '' : 's'} queued in total.\n\n` +
+        'Lock the screen and wait. If it stays silent, the phone accepted it and then dropped it — which is a battery setting, not the app.'
     );
   };
 
