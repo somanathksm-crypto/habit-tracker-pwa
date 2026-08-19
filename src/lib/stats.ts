@@ -10,6 +10,7 @@ import {
   startOfISOWeek,
   startOfMonth,
 } from 'date-fns';
+import { expectedOccurrences, periodCompletionPct } from './habitSchedule';
 import type { Habit, HabitLog, Metric, MetricLog, MetricTarget } from '../types';
 
 export const todayStr = () => format(new Date(), 'yyyy-MM-dd');
@@ -68,14 +69,13 @@ export function longestStreak(logs: HabitLog[]): number {
   return best;
 }
 
-/** Completion % vs target_count if set, else vs days elapsed since creation. */
+/**
+ * Completion measured against the habit's own schedule — see
+ * `periodCompletionPct`. A habit due twice a week is judged on weeks it hit,
+ * not on days it happened to be idle.
+ */
 export function completionPct(habit: Habit, logs: HabitLog[]): number {
-  const completed = logs.filter((l) => l.completed).length;
-  const denominator =
-    habit.target_count && habit.target_count > 0
-      ? habit.target_count
-      : Math.max(1, differenceInCalendarDays(new Date(), parseISO(habit.created_at)) + 1);
-  return Math.min(1, completed / denominator);
+  return periodCompletionPct(habit, logs);
 }
 
 export interface WeeklyRollupPoint {
@@ -295,13 +295,10 @@ export interface GlobalProgress {
 /** All-time completed vs. goal across every habit — mirrors the spreadsheet's top-level Completed/Goal/Left summary. */
 export function globalProgress(habits: Habit[], allLogs: HabitLog[]): GlobalProgress {
   const completed = allLogs.filter((l) => l.completed).length;
-  const goal = habits.reduce((sum, h) => {
-    const denom =
-      h.target_count && h.target_count > 0
-        ? h.target_count
-        : Math.max(1, differenceInCalendarDays(new Date(), parseISO(h.created_at)) + 1);
-    return sum + denom;
-  }, 0);
+  // The goal is how many times each habit was actually due since it was
+  // created — counting every elapsed day would make anything less than daily
+  // look permanently behind.
+  const goal = habits.reduce((sum, h) => sum + expectedOccurrences(h), 0);
   return { completed, goal, left: Math.max(0, goal - completed) };
 }
 

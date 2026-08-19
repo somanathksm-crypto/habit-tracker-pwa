@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import { configureFonts, MD3LightTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
-import type { HabitCategory } from './types';
 
 // v2 palette — approved 2026-08-15. Warm stone ground, deep sage accent,
 // clay reserved exclusively for streaks (an earned signal, not decoration).
@@ -29,12 +28,6 @@ export const colors = {
   longestStreak: '#4A7FB5',
 };
 
-export const categoryColors: Record<HabitCategory, string> = {
-  diet: '#B07A3B',
-  skincare: '#8B7AA8',
-  supplement: '#3D6A54',
-  general: '#4C6E86',
-};
 
 // React Native Paper's default MD3 type scale uses a distinct "medium"
 // font alias on Android (sans-serif-medium) for buttons/chips/labels,

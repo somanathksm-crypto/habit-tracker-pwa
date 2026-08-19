@@ -1,14 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { HabitToggleCard } from '../components/HabitToggleCard';
 import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
-import { currentStreak, todayStr } from '../lib/stats';
+import { todayStr } from '../lib/stats';
+import { periodStreak } from '../lib/habitSchedule';
 import { colors } from '../theme';
-import { HABIT_CATEGORIES } from '../types';
 import type { TodayStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
@@ -20,13 +20,6 @@ export function TodayScreen({ navigation }: Props) {
   const doneCount = habits.filter((h) =>
     habitLogs.some((l) => l.habit_id === h.id && l.log_date === today && l.completed)
   ).length;
-
-  const grouped = useMemo(() => {
-    return HABIT_CATEGORIES.map((c) => ({
-      ...c,
-      habits: habits.filter((h) => h.category === c.value),
-    })).filter((g) => g.habits.length > 0);
-  }, [habits]);
 
   const allDone = habits.length > 0 && doneCount === habits.length;
 
@@ -51,30 +44,25 @@ export function TodayScreen({ navigation }: Props) {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>No habits yet</Text>
             <Text style={styles.emptySubtitle}>
-              Tap the + button below to add your first habit — diet, skincare, supplements, or
-              anything else you want to track daily.
+              Tap the + button below to add your first habit — anything you want to keep on top
+              of, however often it's due.
             </Text>
           </View>
         ) : (
-          grouped.map((group) => (
-            <View key={group.value} style={styles.section}>
-              <Text style={styles.sectionHeader}>{group.label}</Text>
-              <View style={styles.cardList}>
-                {group.habits.map((habit) => (
-                  <HabitToggleCard
-                    key={habit.id}
-                    habit={habit}
-                    logs={logsForHabit(habit.id)}
-                    streak={currentStreak(logsForHabit(habit.id))}
-                    reminders={remindersForHabit(habit.id)}
-                    onToggleDay={(dateStr) => toggleHabitLog(habit.id, dateStr)}
-                    onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}
-                    onEditAlarms={() => navigation.navigate('AddEditHabit', { habitId: habit.id })}
-                  />
-                ))}
-              </View>
-            </View>
-          ))
+          <View style={styles.cardList}>
+            {habits.map((habit) => (
+              <HabitToggleCard
+                key={habit.id}
+                habit={habit}
+                logs={logsForHabit(habit.id)}
+                streak={periodStreak(habit, logsForHabit(habit.id))}
+                reminders={remindersForHabit(habit.id)}
+                onToggleDay={(dateStr) => toggleHabitLog(habit.id, dateStr)}
+                onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}
+                onEditAlarms={() => navigation.navigate('AddEditHabit', { habitId: habit.id })}
+              />
+            ))}
+          </View>
         )}
       </ScrollView>
 

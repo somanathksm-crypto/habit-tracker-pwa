@@ -3,11 +3,10 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
-import { CategoryChip } from '../components/CategoryChip';
 import { StatCard } from '../components/StatCard';
 import { useData } from '../lib/store';
 import { currentMissedStreak, currentStreak, longestStreak, monthlyWeekBreakdown } from '../lib/stats';
-import { categoryColors, colors } from '../theme';
+import { colors } from '../theme';
 
 type Props = {
   route: { params: { habitId: string } };
@@ -29,7 +28,7 @@ export function HabitDetailScreen({ route, navigation }: Props) {
   }
 
   const logs = logsForHabit(habit.id);
-  const accent = categoryColors[habit.category];
+  const accent = colors.accent;
   const monthWeeks = monthlyWeekBreakdown(1, logs, viewMonth);
 
   const chartData = monthWeeks.map((w, i) => ({
@@ -62,9 +61,6 @@ export function HabitDetailScreen({ route, navigation }: Props) {
       <View style={styles.header}>
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={styles.name}>{habit.name}</Text>
-          <View style={{ marginTop: 6 }}>
-            <CategoryChip category={habit.category} />
-          </View>
         </View>
         <View style={{ flexDirection: 'row' }}>
           <IconButton icon="pencil-outline" onPress={() => navigation.navigate('AddEditHabit', { habitId: habit.id })} />

@@ -1,16 +1,31 @@
-export type HabitCategory = 'diet' | 'skincare' | 'supplement' | 'general';
-export type FrequencyType = 'daily' | 'weekly' | 'custom';
-
 /** How the main habits screen is laid out — chosen on first launch, changeable in Settings. */
 export type HabitView = 'cards' | 'grid';
+
+export type HabitPeriod = 'day' | 'week' | 'custom';
+
+/**
+ * When a habit is due.
+ *
+ * - `day`    — every day, `times` per day (a tablet three times daily)
+ * - `week`   — either specific weekdays, or any `times` days in the week
+ * - `custom` — explicit dates, one-off. Dates that have passed are dropped, so
+ *              the habit stops asking for days that are gone.
+ *
+ * Knowing *which* days were expected is what lets the app stop treating every
+ * untouched day as a failure.
+ */
+export type HabitSchedule =
+  | { period: 'day' }
+  | { period: 'week'; times: number; weekdays: number[] } // 0=Sun…6=Sat; empty means any `times` days
+  | { period: 'custom'; dates: string[] }; // yyyy-MM-dd
+
+export const DEFAULT_SCHEDULE: HabitSchedule = { period: 'day' };
 
 export interface Habit {
   id: string;
   user_id: string;
   name: string;
-  category: HabitCategory;
-  frequency_type: FrequencyType;
-  target_count: number | null;
+  schedule: HabitSchedule;
   created_at: string; // ISO timestamp
 }
 
@@ -38,6 +53,11 @@ export interface HabitLog {
   id: string;
   habit_id: string;
   log_date: string; // yyyy-MM-dd
+  /**
+   * A day is done or it isn't. Something due several times a day is better
+   * modelled as separate habits — one per time — so each gets its own alarm
+   * and its own history, showing which of them you actually keep missing.
+   */
   completed: boolean;
 }
 
@@ -56,12 +76,6 @@ export interface WeightTarget {
   target_date: string; // yyyy-MM-dd
 }
 
-export const HABIT_CATEGORIES: { value: HabitCategory; label: string }[] = [
-  { value: 'diet', label: 'Diet' },
-  { value: 'skincare', label: 'Skincare' },
-  { value: 'supplement', label: 'Supplements' },
-  { value: 'general', label: 'General' },
-];
 
 export interface Metric {
   id: string;

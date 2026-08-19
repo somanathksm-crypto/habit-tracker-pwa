@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Chip, SegmentedButtons, TextInput } from 'react-native-paper';
+import { Button, TextInput } from 'react-native-paper';
 import { ReminderRow } from '../components/ReminderRow';
+import { ScheduleField } from '../components/ScheduleField';
 import { useData } from '../lib/store';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
-import { categoryColors, colors } from '../theme';
-import { HABIT_CATEGORIES, type FrequencyType, type HabitCategory, type HabitReminder } from '../types';
+import { colors } from '../theme';
+import { DEFAULT_SCHEDULE, type HabitReminder, type HabitSchedule } from '../types';
 
 type ReminderDraft = Omit<HabitReminder, 'id' | 'habit_id'>;
 
@@ -14,20 +15,12 @@ type Props = {
   navigation: any;
 };
 
-const FREQUENCY_OPTIONS: { value: FrequencyType; label: string }[] = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'custom', label: 'Custom' },
-];
-
 export function AddEditHabitScreen({ route, navigation }: Props) {
   const { habits, addHabit, updateHabit, remindersForHabit, setRemindersForHabit, setRemindersEnabled } = useData();
   const existing = route.params?.habitId ? habits.find((h) => h.id === route.params.habitId) : undefined;
 
   const [name, setName] = useState(existing?.name ?? '');
-  const [category, setCategory] = useState<HabitCategory>(existing?.category ?? 'general');
-  const [frequency, setFrequency] = useState<FrequencyType>(existing?.frequency_type ?? 'daily');
-  const [target, setTarget] = useState(existing?.target_count ? String(existing.target_count) : '');
+  const [schedule, setSchedule] = useState<HabitSchedule>(existing?.schedule ?? { ...DEFAULT_SCHEDULE });
   // Held locally until save — a new habit has no id to attach reminders to yet.
   const [reminders, setReminders] = useState<ReminderDraft[]>(
     existing
@@ -52,11 +45,9 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
   };
 
   const save = () => {
-    const target_count = target.trim() ? parseInt(target, 10) : null;
     const habitId = existing
-      ? (updateHabit(existing.id, { name: name.trim(), category, frequency_type: frequency, target_count }),
-        existing.id)
-      : addHabit({ name: name.trim(), category, frequency_type: frequency, target_count }).id;
+      ? (updateHabit(existing.id, { name: name.trim(), schedule }), existing.id)
+      : addHabit({ name: name.trim(), schedule }).id;
     setRemindersForHabit(habitId, reminders);
     navigation.goBack();
   };
@@ -66,32 +57,8 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
       <Text style={styles.label}>Habit name</Text>
       <TextInput mode="outlined" placeholder="e.g. Drink water" value={name} onChangeText={setName} />
 
-      <Text style={styles.label}>Category</Text>
-      <View style={styles.chipRow}>
-        {HABIT_CATEGORIES.map((c) => (
-          <Chip
-            key={c.value}
-            selected={category === c.value}
-            onPress={() => setCategory(c.value)}
-            style={[styles.chip, category === c.value && { backgroundColor: `${categoryColors[c.value]}22` }]}
-            selectedColor={categoryColors[c.value]}
-          >
-            {c.label}
-          </Chip>
-        ))}
-      </View>
-
-      <Text style={styles.label}>Frequency</Text>
-      <SegmentedButtons value={frequency} onValueChange={(v) => setFrequency(v as FrequencyType)} buttons={FREQUENCY_OPTIONS} />
-
-      <Text style={styles.label}>Target / goal (optional)</Text>
-      <TextInput
-        mode="outlined"
-        placeholder="e.g. 30 days"
-        keyboardType="number-pad"
-        value={target}
-        onChangeText={setTarget}
-      />
+      <Text style={styles.label}>How often</Text>
+      <ScheduleField value={schedule} onChange={setSchedule} />
 
       <Text style={styles.label}>Reminders</Text>
       <Text style={styles.hint}>

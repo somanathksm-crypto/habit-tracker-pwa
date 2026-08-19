@@ -11,7 +11,8 @@ import {
   processLaunchResponse,
 } from './notificationActions';
 import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
-import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitReminder, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
+import { DEFAULT_SCHEDULE } from '../types';
+import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -58,11 +59,12 @@ interface DataContextValue extends StoredState {
   loading: boolean;
   addHabit: (input: {
     name: string;
-    category: HabitCategory;
-    frequency_type: FrequencyType;
-    target_count: number | null;
+    schedule?: HabitSchedule;
   }) => Habit;
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'category' | 'frequency_type' | 'target_count'>>) => void;
+  updateHabit: (
+    id: string,
+    patch: Partial<Pick<Habit, 'name' | 'schedule'>>
+  ) => void;
   deleteHabit: (id: string) => void;
   seedStarterHabits: () => number;
   seedDemoData: () => void;
@@ -94,6 +96,8 @@ function migrate(state: StoredState): StoredState {
     ...state,
     // Reminders predate repeat rules and were implicitly every day.
     reminders: state.reminders.map((r) => (r.repeat ? r : { ...r, repeat: { kind: 'daily' as const } })),
+    // Habits predate schedules and were all once a day.
+    habits: state.habits.map((h) => (h.schedule ? h : { ...h, schedule: { ...DEFAULT_SCHEDULE } })),
   };
 }
 
@@ -143,7 +147,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // somehow gets applied twice.
         if (existing) {
           if (!existing.completed) {
-            habitLogs = habitLogs.map((l) => (l.id === existing.id ? { ...l, completed: true } : l));
+            habitLogs = habitLogs.map((l) =>
+              l.id === existing.id ? { ...l, completed: true } : l
+            );
           }
         } else {
           habitLogs = [
@@ -194,14 +200,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       loading,
-      addHabit: ({ name, category, frequency_type, target_count }) => {
+      addHabit: ({ name, schedule }) => {
         const habit: Habit = {
           id: uid(),
           user_id: LOCAL_USER_ID,
           name,
-          category,
-          frequency_type,
-          target_count,
+          schedule: schedule ?? { ...DEFAULT_SCHEDULE },
           created_at: new Date().toISOString(),
         };
         setState((s) => ({ ...s, habits: [...s.habits, habit] }));
@@ -230,9 +234,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           id: uid(),
           user_id: LOCAL_USER_ID,
           name: h.name,
-          category: h.category,
-          frequency_type: h.frequency_type,
-          target_count: h.target_count,
+          schedule: h.schedule,
           created_at: now,
         }));
         setState((s) => ({ ...s, habits: [...s.habits, ...newHabits] }));
@@ -250,7 +252,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
           const newLogs: HabitLog[] = [];
           for (const habit of s.habits) {
-            const bias = habit.frequency_type === 'weekly' ? 0.15 + Math.random() * 0.15 : 0.5 + Math.random() * 0.4;
+            const bias = habit.schedule?.period === 'week' ? 0.15 + Math.random() * 0.15 : 0.5 + Math.random() * 0.4;
             for (let i = days; i >= 0; i--) {
               if (Math.random() < bias) {
                 newLogs.push({
@@ -302,14 +304,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const log: HabitLog = { id: uid(), habit_id: habitId, log_date: logDate, completed: true };
             return { ...s, habitLogs: [...s.habitLogs, log] };
           }
-          if (existing.completed) {
-            // second tap: remove the log entirely rather than storing completed=false clutter
-            return { ...s, habitLogs: s.habitLogs.filter((l) => l.id !== existing.id) };
-          }
-          return {
-            ...s,
-            habitLogs: s.habitLogs.map((l) => (l.id === existing.id ? { ...l, completed: true } : l)),
-          };
+          // A missed day is an absent row rather than a stored false — stats
+          // rely on that, so a second tap removes it.
+          return { ...s, habitLogs: s.habitLogs.filter((l) => l.id !== existing.id) };
         });
       },
       logsForHabit: (habitId) => state.habitLogs.filter((l) => l.habit_id === habitId),

@@ -6,7 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { FAB } from 'react-native-paper';
 import { AlarmBadge } from '../components/AlarmBadge';
 import { useData } from '../lib/store';
-import { currentStreak } from '../lib/stats';
+import { describeProgress, hasNonTrivialSchedule, isDueOn, periodStreak, progressFor } from '../lib/habitSchedule';
 import { colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
@@ -75,8 +75,8 @@ export function HabitGridScreen({ navigation }: Props) {
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>No habits yet</Text>
           <Text style={styles.emptySubtitle}>
-            Tap the + button below to add your first habit — diet, skincare, supplements, or
-            anything else you want to track daily.
+            Tap the + button below to add your first habit — anything you want to keep on top
+            of, however often it's due.
           </Text>
         </View>
       ) : (
@@ -105,7 +105,9 @@ export function HabitGridScreen({ navigation }: Props) {
 
           {habits.map((habit) => {
             const created = startOfDay(parseISO(habit.created_at));
-            const streak = currentStreak(logsForHabit(habit.id));
+            const logs = logsForHabit(habit.id);
+            const streak = periodStreak(habit, logs);
+            const progress = progressFor(habit, logs);
             return (
               <View key={habit.id} style={styles.habitBlock}>
                 <Pressable onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}>
@@ -123,6 +125,12 @@ export function HabitGridScreen({ navigation }: Props) {
                       <Text style={styles.streakText}>{streak}</Text>
                     </View>
                   )}
+                  {/* Only worth saying when it isn't a plain once-a-day habit. */}
+                  {hasNonTrivialSchedule(habit) && (
+                    <Text style={[styles.scheduleNote, progress.satisfied && styles.scheduleNoteDone]}>
+                      {describeProgress(progress)}
+                    </Text>
+                  )}
                 </View>
 
                 <View style={styles.boxRow}>
@@ -130,8 +138,12 @@ export function HabitGridScreen({ navigation }: Props) {
                     const dateStr = format(date, 'yyyy-MM-dd');
                     const isToday = dateStr === todayStr;
                     const done = completed.has(`${habit.id}|${dateStr}`);
+                    // Faded when the habit wasn't due — a rest day for a
+                    // Mon/Thu habit is not a miss, and shouldn't look like one.
                     const notApplicable =
-                      (isAfter(date, today) && !isToday) || isBefore(date, created);
+                      (isAfter(date, today) && !isToday) ||
+                      isBefore(date, created) ||
+                      !isDueOn(habit, date);
                     return (
                       <Pressable
                         key={i}
@@ -211,6 +223,8 @@ const styles = StyleSheet.create({
   streak: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   streakEmoji: { fontSize: 13 },
   streakText: { fontSize: 13, fontWeight: '700', color: colors.clay, minWidth: 16 },
+  scheduleNote: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, minWidth: 110 },
+  scheduleNoteDone: { color: colors.accent },
 
   boxRow: { flexDirection: 'row', gap: COL_GAP },
   // Every box is outlined. Fill alone was nearly the same value as the page,
