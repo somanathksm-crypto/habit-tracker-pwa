@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { useData } from '../lib/store';
+import { currentStreak } from '../lib/stats';
 import { colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
@@ -18,7 +19,7 @@ type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
  * the app, only today can actually be toggled — past days are history.
  */
 export function HabitGridScreen({ navigation }: Props) {
-  const { habits, habitLogs, toggleHabitLog } = useData();
+  const { habits, habitLogs, toggleHabitLog, logsForHabit } = useData();
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -93,6 +94,7 @@ export function HabitGridScreen({ navigation }: Props) {
 
             {habits.map((habit) => {
               const created = startOfDay(parseISO(habit.created_at));
+              const streak = currentStreak(logsForHabit(habit.id));
               return (
                 <View key={habit.id} style={styles.row}>
                   <Pressable
@@ -102,6 +104,12 @@ export function HabitGridScreen({ navigation }: Props) {
                     <Text style={styles.habitName} numberOfLines={2}>
                       {habit.name}
                     </Text>
+                    {streak > 0 && (
+                      <View style={styles.streak}>
+                        <Text style={styles.streakEmoji}>🔥</Text>
+                        <Text style={styles.streakText}>{streak}</Text>
+                      </View>
+                    )}
                   </Pressable>
                   <View style={styles.days}>
                     {weekDates.map((date, i) => {
@@ -151,14 +159,14 @@ export function HabitGridScreen({ navigation }: Props) {
   );
 }
 
-const BOX = 26;
-const COL = 30;
-const NAME_W = 118;
+const BOX = 25;
+const COL = 28;
+const NAME_W = 132;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
-  title: { fontSize: 24, fontWeight: '700', color: colors.text },
+  title: { fontSize: 24, fontWeight: '800', color: colors.text },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   weekArrow: { fontSize: 22, color: colors.accent, fontWeight: '700', paddingHorizontal: 18 },
   weekArrowDisabled: { color: colors.textFaint },
@@ -179,7 +187,7 @@ const styles = StyleSheet.create({
     width: NAME_W,
     minWidth: NAME_W,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.textSecondary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -196,8 +204,18 @@ const styles = StyleSheet.create({
   },
   dayLetterToday: { color: colors.accent },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
-  nameWrap: { width: NAME_W, minWidth: NAME_W },
-  habitName: { width: NAME_W, minWidth: NAME_W, fontSize: 13, color: colors.text, lineHeight: 17, paddingRight: 8 },
+  nameWrap: { width: NAME_W, minWidth: NAME_W, flexDirection: 'row', alignItems: 'center' },
+  habitName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMedium,
+    lineHeight: 18,
+    paddingRight: 6,
+  },
+  streak: { flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
+  streakEmoji: { fontSize: 12, marginRight: 2 },
+  streakText: { fontSize: 13, fontWeight: '700', color: colors.clay, minWidth: 14 },
   box: {
     width: BOX,
     height: BOX,

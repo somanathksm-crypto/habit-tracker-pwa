@@ -10,6 +10,7 @@ export const colors = {
   surface: '#FFFFFF',
   surfaceMuted: '#E8E5DC',
   text: '#1B211D',
+  textMedium: '#3F453E', // between text and textSecondary — body items that sit under a heading
   textSecondary: '#63695F',
   textFaint: '#9A9A8E',
   border: '#DEDACD',
