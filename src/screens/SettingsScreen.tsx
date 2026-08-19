@@ -1,11 +1,14 @@
+import { format } from 'date-fns';
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Switch } from 'react-native-paper';
 import { useData } from '../lib/store';
 import {
   countScheduled,
+  nextScheduledAlarm,
   notificationsSupported,
   requestNotificationPermission,
+  scheduleTestAlarm,
 } from '../lib/notifications';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors } from '../theme';
@@ -28,17 +31,44 @@ export function SettingsScreen() {
     setRemindersEnabled,
   } = useData();
   const [scheduled, setScheduled] = useState(0);
+  const [nextAlarm, setNextAlarm] = useState<Date | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Show what the OS actually has queued, not just what we intended.
+  // Show what the OS actually has queued, not just what we intended — the two
+  // diverge exactly when something has gone wrong.
   useEffect(() => {
     let active = true;
-    countScheduled().then((n) => {
-      if (active) setScheduled(n);
+    Promise.all([countScheduled(), nextScheduledAlarm()]).then(([n, next]) => {
+      if (!active) return;
+      setScheduled(n);
+      setNextAlarm(next);
     });
     return () => {
       active = false;
     };
-  }, [reminders, remindersEnabled]);
+  }, [reminders, remindersEnabled, refreshKey]);
+
+  const runTestAlarm = async () => {
+    const ok = await scheduleTestAlarm(60);
+    setRefreshKey((k) => k + 1);
+    Alert.alert(
+      ok ? 'Test alarm set' : 'Could not set a test alarm',
+      ok
+        ? 'It should ring in about a minute. Swipe the app away from recents now — if it does not ring, your phone is killing the app and the fix is in battery settings, not the app.'
+        : 'Notification permission is off. Turn on Habit alarms first.'
+    );
+  };
+
+  const showTroubleshooting = () => {
+    Alert.alert(
+      'Alarms not working?',
+      'Some phones (OnePlus, Xiaomi, Oppo, Vivo, Samsung) stop apps that you swipe away from recents, which also cancels their alarms.\n\n' +
+        '1. Settings → Battery → Battery Optimization → this app → Don\'t optimize\n' +
+        '2. Turn off any "deep" or "sleep standby" optimization\n' +
+        '3. In recents, lock this app so "clear all" skips it\n\n' +
+        'Then use the test alarm to check.'
+    );
+  };
 
   const toggleReminders = async (next: boolean) => {
     if (!next) {
@@ -129,10 +159,35 @@ export function SettingsScreen() {
             {reminders.length === 0
               ? 'No reminder times set yet. Open a habit and add one.'
               : notificationsSupported
-                ? `${reminders.length} reminder time${reminders.length === 1 ? '' : 's'} set · ${scheduled} alarm${scheduled === 1 ? '' : 's'} scheduled`
+                ? `${reminders.length} reminder time${reminders.length === 1 ? '' : 's'} set · ${scheduled} alarm${scheduled === 1 ? '' : 's'} queued with the phone`
                 : `${reminders.length} reminder time${reminders.length === 1 ? '' : 's'} saved — these will ring once you install the app.`}
           </Text>
+          {notificationsSupported && (
+            <Text style={[styles.rowSubtitle, styles.nextAlarm]}>
+              {nextAlarm
+                ? `Next alarm: ${format(nextAlarm, 'EEE d MMM, HH:mm')}`
+                : reminders.length > 0
+                  ? 'Next alarm: none queued — the phone may have cleared them.'
+                  : 'Next alarm: none'}
+            </Text>
+          )}
         </View>
+
+        {notificationsSupported && (
+          <View style={styles.card}>
+            <Text style={styles.rowLabel}>Check alarms work on this phone</Text>
+            <Text style={styles.rowSubtitle}>
+              Rings in one minute. Swipe the app away from recents straight after — if it stays
+              silent, your phone is killing the app rather than the app being broken.
+            </Text>
+            <Button mode="contained" onPress={runTestAlarm} style={{ marginTop: 10 }}>
+              Test alarm in 1 minute
+            </Button>
+            <Button mode="text" onPress={showTroubleshooting} style={{ marginTop: 4 }}>
+              Alarms not working?
+            </Button>
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -178,4 +233,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   rowLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   rowSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  nextAlarm: { marginTop: 6, fontWeight: '600', color: colors.text },
 });

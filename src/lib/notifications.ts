@@ -140,3 +140,55 @@ export async function countScheduled(): Promise<number> {
   if (!notificationsSupported) return 0;
   return (await Notifications.getAllScheduledNotificationsAsync()).length;
 }
+
+/**
+ * Earliest alarm the OS actually holds — read back from the system rather than
+ * recomputed from our own state, so it tells you what will really happen. If
+ * the app has been force-stopped (some Android skins do this when you swipe it
+ * off recents) the OS drops the alarms and this reports null even though the
+ * reminders are still configured.
+ */
+export async function nextScheduledAlarm(): Promise<Date | null> {
+  if (!notificationsSupported) return null;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  let soonest: number | null = null;
+  for (const request of scheduled) {
+    // Trigger shape varies by type and platform; a dated trigger carries a
+    // `date` we can read, anything else is skipped rather than guessed at.
+    const trigger = request.trigger as { date?: number | string | Date } | null;
+    const raw = trigger?.date;
+    if (raw === undefined) continue;
+    const ms = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+    if (Number.isNaN(ms)) continue;
+    if (soonest === null || ms < soonest) soonest = ms;
+  }
+  return soonest === null ? null : new Date(soonest);
+}
+
+/** Fires a one-off alarm shortly, to check alarms survive on this device. */
+export async function scheduleTestAlarm(seconds = 60): Promise<boolean> {
+  if (!notificationsSupported) return false;
+  if (!(await requestNotificationPermission())) return false;
+  await ensureAlarmChannel();
+  await ensureNotificationCategory();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Test alarm',
+      body: 'Alarms are working on this phone.',
+      sound: 'default',
+      vibrate: VIBRATION_PATTERN,
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      color: '#35513F',
+      sticky: true,
+      autoDismiss: false,
+      interruptionLevel: 'timeSensitive',
+      data: { test: true },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds,
+      channelId: ALARM_CHANNEL_ID,
+    },
+  });
+  return true;
+}
