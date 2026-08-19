@@ -10,7 +10,11 @@ import {
   requestNotificationPermission,
   scheduleTestAlarm,
 } from '../lib/notifications';
-import { batterySetupSupported, openBatteryOptimizationPrompt } from '../lib/batteryOptimization';
+import {
+  batterySetupSupported,
+  extraBatterySteps,
+  openBatteryOptimizationPrompt,
+} from '../lib/batteryOptimization';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors } from '../theme';
 import type { HabitView } from '../types';
@@ -63,14 +67,19 @@ export function SettingsScreen() {
   };
 
   const showTroubleshooting = () => {
-    Alert.alert(
-      'Alarms not working?',
-      'Some phones (OnePlus, Xiaomi, Oppo, Vivo, Samsung) stop apps that you swipe away from recents, which also cancels their alarms.\n\n' +
-        '1. Settings → Battery → Battery Optimization → this app → Don\'t optimize\n' +
+    const extra = extraBatterySteps();
+    // Name the steps for the phone in hand where we recognise it, rather than
+    // a generic list the reader has to translate.
+    const body = extra
+      ? `Your ${extra.brand} phone stops background apps, which silently prevents alarms.\n\n` +
+        extra.steps.map((s, i) => `${i + 1}. ${s}`).join('\n') +
+        '\n\nThen use the test alarm to check.'
+      : 'Some phones stop apps that you swipe away from recents, which also stops their alarms.\n\n' +
+        "1. Settings → Battery → Battery Optimization → this app → Don't optimize\n" +
         '2. Turn off any "deep" or "sleep standby" optimization\n' +
         '3. In recents, lock this app so "clear all" skips it\n\n' +
-        'Then use the test alarm to check.'
-    );
+        'Then use the test alarm to check.';
+    Alert.alert('Alarms not working?', body);
   };
 
   const toggleReminders = async (next: boolean) => {
@@ -216,6 +225,12 @@ export function SettingsScreen() {
             <Button mode="outlined" onPress={openBatteryOptimizationPrompt} style={{ marginTop: 10 }}>
               Open battery setting
             </Button>
+            {extraBatterySteps() && (
+              <Text style={[styles.rowSubtitle, styles.brandNote]}>
+                {extraBatterySteps()!.brand} phones usually need a couple of extra settings on top
+                of this — see "Alarms not working?" above.
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -264,4 +279,5 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   rowSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   nextAlarm: { marginTop: 6, fontWeight: '600', color: colors.text },
+  brandNote: { marginTop: 8, color: colors.warning },
 });
