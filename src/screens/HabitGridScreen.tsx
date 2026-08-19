@@ -80,9 +80,12 @@ export function HabitGridScreen({ navigation }: Props) {
           </Text>
         </View>
       ) : (
-        // Index 0 is the day-letter strip: pinned, so you can still tell which
-        // column is which after scrolling past the top.
-        <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+        <>
+          {/* Outside the scroll view on purpose. Inside it as a sticky header,
+              the wrapper stopped the row laying out horizontally and the day
+              letters stacked into a single column on device — while looking
+              correct in a browser. Sitting above the list keeps them visible
+              with no wrapper involved. */}
           <View style={styles.dayHeader}>
             {weekDates.map((date, i) => (
               <View key={i} style={[styles.dayCol, { width: colWidth }]}>
@@ -97,6 +100,8 @@ export function HabitGridScreen({ navigation }: Props) {
               </View>
             ))}
           </View>
+
+          <ScrollView contentContainerStyle={styles.content}>
 
           {habits.map((habit) => {
             const created = startOfDay(parseISO(habit.created_at));
@@ -151,9 +156,10 @@ export function HabitGridScreen({ navigation }: Props) {
                   })}
                 </View>
               </View>
-            );
-          })}
-        </ScrollView>
+              );
+            })}
+          </ScrollView>
+        </>
       )}
 
       <FAB
@@ -179,11 +185,11 @@ const styles = StyleSheet.create({
   weekSub: { fontSize: 11, color: colors.textSecondary, textAlign: 'center', minWidth: 130, marginTop: 1 },
   content: { paddingHorizontal: SIDE_PADDING, paddingBottom: 110 },
 
-  // Opaque, or scrolled habits show through the pinned strip.
   dayHeader: {
     flexDirection: 'row',
     gap: COL_GAP,
     backgroundColor: colors.background,
+    paddingHorizontal: SIDE_PADDING,
     paddingTop: 6,
     paddingBottom: 8,
     borderBottomWidth: 1,
