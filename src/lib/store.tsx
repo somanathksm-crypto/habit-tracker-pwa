@@ -69,8 +69,21 @@ interface DataContextValue extends StoredState {
   setMetricTarget: (metricId: string, target: Omit<MetricTarget, 'metric_id'>) => void;
   setHabitView: (view: HabitView) => void;
   remindersForHabit: (habitId: string) => HabitReminder[];
-  setRemindersForHabit: (habitId: string, times: string[]) => void;
+  setRemindersForHabit: (habitId: string, reminders: Omit<HabitReminder, 'id' | 'habit_id'>[]) => void;
   setRemindersEnabled: (enabled: boolean) => void;
+}
+
+/**
+ * Field-level fixups for snapshots written by older versions. The spread onto
+ * `emptyState` above only fills in missing *top-level* keys — anything nested
+ * inside a stored array has to be repaired here.
+ */
+function migrate(state: StoredState): StoredState {
+  return {
+    ...state,
+    // Reminders predate repeat rules and were implicitly every day.
+    reminders: state.reminders.map((r) => (r.repeat ? r : { ...r, repeat: { kind: 'daily' as const } })),
+  };
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -87,7 +100,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // snapshot saved before a new field/collection existed (e.g. an
         // older session's data missing metrics/metricLogs/metricTargets)
         // would otherwise leave those keys undefined instead of [].
-        if (raw) setState({ ...emptyState, ...JSON.parse(raw) });
+        if (raw) setState(migrate({ ...emptyState, ...JSON.parse(raw) }));
       } finally {
         setLoading(false);
       }
@@ -99,12 +112,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
   }, [state, loading]);
 
-  // Keep the OS alarm schedule in step with stored reminders. Renaming a habit
-  // changes its alarm text, so habits are a dependency too.
+  // Keep the OS alarm schedule in step with stored state. Habits are a
+  // dependency because renaming one changes its alarm text; habitLogs because
+  // completing a habit should drop its pending alarm for that day.
   useEffect(() => {
     if (loading) return;
-    syncScheduledReminders(state.habits, state.reminders, state.remindersEnabled).catch(() => {});
-  }, [state.habits, state.reminders, state.remindersEnabled, loading]);
+    syncScheduledReminders(
+      state.habits,
+      state.reminders,
+      state.habitLogs,
+      state.remindersEnabled
+    ).catch(() => {});
+  }, [state.habits, state.reminders, state.habitLogs, state.remindersEnabled, loading]);
 
   const value = useMemo<DataContextValue>(
     () => ({
@@ -303,13 +322,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       remindersForHabit: (habitId) =>
         state.reminders.filter((r) => r.habit_id === habitId).sort((a, b) => a.time.localeCompare(b.time)),
-      setRemindersForHabit: (habitId, times) => {
+      setRemindersForHabit: (habitId, next) => {
         setState((s) => {
-          // Duplicate times would just fire two identical alarms.
-          const unique = [...new Set(times)].sort();
+          // Identical time + repeat would just fire two of the same alarm.
+          const seen = new Set<string>();
+          const deduped = next.filter((r) => {
+            const key = `${r.time}|${JSON.stringify(r.repeat)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
           const others = s.reminders.filter((r) => r.habit_id !== habitId);
-          const next = unique.map((time) => ({ id: uid(), habit_id: habitId, time }));
-          return { ...s, reminders: [...others, ...next] };
+          return {
+            ...s,
+            reminders: [
+              ...others,
+              ...deduped.map((r) => ({ ...r, id: uid(), habit_id: habitId })),
+            ],
+          };
         });
       },
       setRemindersEnabled: (enabled) => {

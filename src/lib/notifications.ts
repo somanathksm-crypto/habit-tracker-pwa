@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import type { Habit, HabitReminder } from '../types';
+import { MAX_SCHEDULED_ANDROID, MAX_SCHEDULED_IOS, plannedOccurrences } from './reminderSchedule';
+import type { Habit, HabitLog, HabitReminder } from '../types';
 
 export const ALARM_CHANNEL_ID = 'habit-alarms';
 
@@ -71,25 +72,23 @@ export async function hasNotificationPermission(): Promise<boolean> {
   return (await Notifications.getPermissionsAsync()).granted;
 }
 
-function parseTime(time: string): { hour: number; minute: number } | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(time);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return { hour, minute };
-}
-
 /**
  * Rebuilds the whole schedule from scratch: cancel everything, then register
- * one repeating daily alarm per reminder. Cheaper to reason about than
- * diffing, and the counts here are small.
+ * each upcoming alarm as its own dated trigger.
+ *
+ * Deliberately *not* using the OS's repeating triggers. A repeating trigger
+ * can't skip a single day, and skipping days the habit is already done is a
+ * requirement — so firing times are computed here (see `plannedOccurrences`)
+ * and registered individually. The trade-off is a finite queue: it holds the
+ * soonest [MAX_SCHEDULED] alarms and is refilled on every change and app
+ * launch, so the app has to be opened occasionally to stay topped up.
  *
  * Returns how many alarms are now scheduled.
  */
 export async function syncScheduledReminders(
   habits: Habit[],
   reminders: HabitReminder[],
+  habitLogs: HabitLog[],
   enabled: boolean
 ): Promise<number> {
   if (!notificationsSupported) return 0;
@@ -101,13 +100,15 @@ export async function syncScheduledReminders(
   await ensureAlarmChannel();
 
   const habitsById = new Map(habits.map((h) => [h.id, h]));
+  // A reminder can outlive its habit if data was edited oddly — drop rather than crash.
+  const live = reminders.filter((r) => habitsById.has(r.habit_id));
+  const cap = Platform.OS === 'ios' ? MAX_SCHEDULED_IOS : MAX_SCHEDULED_ANDROID;
+  const planned = plannedOccurrences(live, habitLogs, new Date(), cap);
   let scheduled = 0;
 
-  for (const reminder of reminders) {
+  for (const { reminder, date } of planned) {
     const habit = habitsById.get(reminder.habit_id);
-    const parsed = parseTime(reminder.time);
-    // A reminder can outlive its habit if data was edited oddly — skip rather than crash.
-    if (!habit || !parsed) continue;
+    if (!habit) continue;
 
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -121,12 +122,11 @@ export async function syncScheduledReminders(
         sticky: true,
         autoDismiss: false,
         interruptionLevel: 'timeSensitive',
-        data: { habitId: habit.id },
+        data: { habitId: habit.id, reminderId: reminder.id },
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: parsed.hour,
-        minute: parsed.minute,
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date,
         channelId: ALARM_CHANNEL_ID,
       },
     });

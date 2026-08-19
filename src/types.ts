@@ -14,11 +14,24 @@ export interface Habit {
   created_at: string; // ISO timestamp
 }
 
-/** One daily alarm for a habit. A habit can have as many as the user wants. */
+/**
+ * When a reminder repeats. `weekdays` uses 0=Sunday…6=Saturday.
+ * `monthly.day` is capped at 28 so it exists in every month.
+ */
+export type ReminderRepeat =
+  | { kind: 'daily' }
+  | { kind: 'weekly'; weekdays: number[] }
+  | { kind: 'monthly'; day: number }
+  | { kind: 'once'; date: string }; // 'yyyy-MM-dd'
+
+export const MAX_MONTHLY_DAY = 28;
+
+/** One alarm for a habit. A habit can have as many as the user wants. */
 export interface HabitReminder {
   id: string;
   habit_id: string;
   time: string; // 'HH:mm', 24-hour, local device time
+  repeat: ReminderRepeat;
 }
 
 export interface HabitLog {

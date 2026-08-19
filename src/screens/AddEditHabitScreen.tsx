@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Chip, SegmentedButtons, TextInput } from 'react-native-paper';
-import { TimeField } from '../components/TimeField';
+import { ReminderRow } from '../components/ReminderRow';
 import { useData } from '../lib/store';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
 import { categoryColors, colors } from '../theme';
-import { HABIT_CATEGORIES, type FrequencyType, type HabitCategory } from '../types';
+import { HABIT_CATEGORIES, type FrequencyType, type HabitCategory, type HabitReminder } from '../types';
+
+type ReminderDraft = Omit<HabitReminder, 'id' | 'habit_id'>;
 
 type Props = {
   route: { params: { habitId?: string } };
@@ -27,20 +29,23 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
   const [frequency, setFrequency] = useState<FrequencyType>(existing?.frequency_type ?? 'daily');
   const [target, setTarget] = useState(existing?.target_count ? String(existing.target_count) : '');
   // Held locally until save — a new habit has no id to attach reminders to yet.
-  const [times, setTimes] = useState<string[]>(
-    existing ? remindersForHabit(existing.id).map((r) => r.time) : []
+  const [reminders, setReminders] = useState<ReminderDraft[]>(
+    existing
+      ? remindersForHabit(existing.id).map((r) => ({ time: r.time, repeat: r.repeat }))
+      : []
   );
 
   const canSave = name.trim().length > 0;
 
-  const updateTime = (index: number, time: string) =>
-    setTimes((t) => t.map((v, i) => (i === index ? time : v)));
-  const removeTime = (index: number) => setTimes((t) => t.filter((_, i) => i !== index));
+  const updateReminder = (index: number, next: ReminderDraft) =>
+    setReminders((rs) => rs.map((r, i) => (i === index ? next : r)));
+  const removeReminder = (index: number) =>
+    setReminders((rs) => rs.filter((_, i) => i !== index));
 
-  const addTime = async () => {
-    setTimes((t) => [...t, '09:00']);
+  const addReminder = async () => {
+    setReminders((rs) => [...rs, { time: '09:00', repeat: { kind: 'daily' } }]);
     // Ask the first time a reminder is added, rather than at app launch.
-    if (notificationsSupported && times.length === 0) {
+    if (notificationsSupported && reminders.length === 0) {
       const granted = await requestNotificationPermission();
       if (granted) setRemindersEnabled(true);
     }
@@ -52,7 +57,7 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
       ? (updateHabit(existing.id, { name: name.trim(), category, frequency_type: frequency, target_count }),
         existing.id)
       : addHabit({ name: name.trim(), category, frequency_type: frequency, target_count }).id;
-    setRemindersForHabit(habitId, times);
+    setRemindersForHabit(habitId, reminders);
     navigation.goBack();
   };
 
@@ -94,16 +99,16 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
           ? 'Alarms for this habit. Add as many times a day as you need.'
           : 'Alarms only run in the installed app — times you set here are saved but will not ring in the browser.'}
       </Text>
-      {times.map((time, i) => (
-        <View key={i} style={styles.timeRow}>
-          <TimeField value={time} onChange={(t) => updateTime(i, t)} />
-          <Pressable onPress={() => removeTime(i)} hitSlop={10} style={styles.remove}>
-            <Text style={styles.removeText}>Remove</Text>
-          </Pressable>
-        </View>
+      {reminders.map((reminder, i) => (
+        <ReminderRow
+          key={i}
+          reminder={reminder}
+          onChange={(next) => updateReminder(i, next)}
+          onRemove={() => removeReminder(i)}
+        />
       ))}
-      <Button mode="outlined" onPress={addTime} style={styles.addTime}>
-        Add reminder time
+      <Button mode="outlined" onPress={addReminder} style={styles.addTime}>
+        Add reminder
       </Button>
 
       <View style={styles.actions}>
@@ -125,9 +130,6 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { backgroundColor: colors.surface },
   hint: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: -2 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
-  remove: { paddingVertical: 6, paddingHorizontal: 4 },
-  removeText: { fontSize: 13, fontWeight: '600', color: colors.danger, minWidth: 60 },
   addTime: { marginTop: 12, alignSelf: 'flex-start' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 24 },
 });
