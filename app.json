@@ -27,9 +27,6 @@
         "WAKE_LOCK",
         "RECEIVE_BOOT_COMPLETED"
       ],
-      "runtimeVersion": {
-        "policy": "fingerprint"
-      },
       "userInterfaceStyle": "automatic"
     },
     "web": {
@@ -54,11 +51,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "37ef7ac4-7f20-463f-8198-60d3f31d3d29"
+        "projectId": "1cece293-f332-4634-b884-d0760f8f2379"
       }
     },
-    "updates": {
-      "url": "https://u.expo.dev/37ef7ac4-7f20-463f-8198-60d3f31d3d29"
-    }
+    "owner": "somanath120896"
   }
 }
