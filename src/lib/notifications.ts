@@ -168,9 +168,8 @@ async function runSync(
         vibrate: VIBRATION_PATTERN,
         priority: Notifications.AndroidNotificationPriority.MAX,
         color: '#35513F',
-        // Stays in the shade until acted on, like an alarm rather than a toast.
-        sticky: true,
-        autoDismiss: false,
+        // Deliberately not `sticky` — an ongoing notification can't be swiped
+        // away, which left no way to dismiss an alarm short of opening the app.
         interruptionLevel: 'timeSensitive',
         categoryIdentifier: ALARM_CATEGORY_ID,
         // habitName rides along so a snooze fired from the background context
@@ -236,10 +235,8 @@ export async function scheduleTestAlarm(seconds = 60): Promise<boolean> {
       vibrate: VIBRATION_PATTERN,
       priority: Notifications.AndroidNotificationPriority.MAX,
       color: '#35513F',
-      sticky: true,
-      autoDismiss: false,
       interruptionLevel: 'timeSensitive',
-      // Carries the buttons too, so this genuinely tests what a real alarm does.
+      // Carries the button too, so this genuinely tests what a real alarm does.
       categoryIdentifier: ALARM_CATEGORY_ID,
       data: { test: true, habitName: 'Test alarm' },
     },

@@ -3,8 +3,6 @@ import * as Notifications from 'expo-notifications';
 import { ALARM_CATEGORY_ID, ALARM_CHANNEL_ID, notificationsSupported } from './notificationConstants';
 
 export const ACTION_DONE = 'habit-done';
-export const ACTION_SNOOZE = 'habit-snooze';
-export const SNOOZE_MINUTES = 10;
 
 /**
  * Actions pressed while the app is backgrounded or terminated run in a bare JS
@@ -33,16 +31,18 @@ function todayString(): string {
 export async function ensureNotificationCategory() {
   if (!notificationsSupported) return;
   await Notifications.setNotificationCategoryAsync(ALARM_CATEGORY_ID, [
+    // Opens the app deliberately. Handling it in the background is nicer when
+    // it works, but Android refuses to wake a force-stopped app from a
+    // notification action — and phones that kill apps swiped off recents
+    // force-stop them — so the button appeared to do nothing at all. Launching
+    // an app is always permitted, even from a stopped state, so this is the
+    // only form that works reliably once the app has been closed.
+    //
+    // To dismiss without opening anything, swipe the notification away.
     {
       identifier: ACTION_DONE,
       buttonTitle: 'Done',
-      // Handled in the background — the point is not having to open the app.
-      options: { opensAppToForeground: false },
-    },
-    {
-      identifier: ACTION_SNOOZE,
-      buttonTitle: `Snooze ${SNOOZE_MINUTES}m`,
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
   ]);
 }
@@ -58,7 +58,26 @@ async function enqueue(action: PendingAction) {
   }
 }
 
-const LAST_HANDLED_KEY = 'habit-tracker/last-handled-response';
+const HANDLED_KEY = 'habit-tracker/handled-responses';
+
+/**
+ * One press can reach us by more than one route — the foreground listener and
+ * the launch check both see the response that opened the app. Ticking twice is
+ * harmless (completion is idempotent) but snoozing twice would queue two
+ * alarms, so every route checks in here first.
+ */
+async function claimResponse(key: string): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(HANDLED_KEY);
+    const seen: string[] = raw ? JSON.parse(raw) : [];
+    if (seen.includes(key)) return false;
+    // Bounded — this only needs to remember the recent past.
+    await AsyncStorage.setItem(HANDLED_KEY, JSON.stringify([...seen, key].slice(-40)));
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Backstop for a button press the background task never got to handle — the
@@ -73,10 +92,6 @@ export async function processLaunchResponse(): Promise<boolean> {
     if (!response) return false;
     const id = response.notification?.request?.identifier;
     if (!id) return false;
-
-    const handled = await AsyncStorage.getItem(LAST_HANDLED_KEY);
-    if (handled === id) return false;
-    await AsyncStorage.setItem(LAST_HANDLED_KEY, id);
 
     // Tapping the notification body isn't an action we act on.
     if (response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) return false;
@@ -134,35 +149,13 @@ export async function handleNotificationAction(
   notificationId?: string
 ) {
   const habitId = typeof data?.habitId === 'string' ? data.habitId : null;
-  const habitName = typeof data?.habitName === 'string' ? data.habitName : 'Habit';
   if (!habitId) return;
+  if (actionIdentifier !== ACTION_DONE) return;
 
-  if (actionIdentifier === ACTION_DONE) {
-    await enqueue({ type: 'complete', habitId, date: todayString(), at: Date.now() });
-    // The alarm is sticky, so it needs dismissing explicitly.
-    if (notificationId) await Notifications.dismissNotificationAsync(notificationId).catch(() => {});
-    return;
-  }
+  // First route to arrive wins; the others see it's already dealt with.
+  if (notificationId && !(await claimResponse(`${notificationId}:${actionIdentifier}`))) return;
 
-  if (actionIdentifier === ACTION_SNOOZE) {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: habitName,
-        body: `Time for ${habitName}`,
-        sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        sticky: true,
-        autoDismiss: false,
-        interruptionLevel: 'timeSensitive',
-        categoryIdentifier: ALARM_CATEGORY_ID,
-        data: { habitId, habitName },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: SNOOZE_MINUTES * 60,
-        channelId: ALARM_CHANNEL_ID,
-      },
-    });
-    if (notificationId) await Notifications.dismissNotificationAsync(notificationId).catch(() => {});
-  }
+  await enqueue({ type: 'complete', habitId, date: todayString(), at: Date.now() });
+  if (notificationId) await Notifications.dismissNotificationAsync(notificationId).catch(() => {});
 }
+
