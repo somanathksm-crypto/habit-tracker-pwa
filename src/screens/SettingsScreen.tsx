@@ -165,7 +165,7 @@ export function SettingsScreen() {
           {notificationsSupported && (
             <Text style={[styles.rowSubtitle, styles.nextAlarm]}>
               {nextAlarm
-                ? `Next alarm: ${format(nextAlarm, 'EEE d MMM, HH:mm')}`
+                ? `Next alarm: ${format(nextAlarm, 'EEE d MMM, h:mm a')}`
                 : reminders.length > 0
                   ? 'Next alarm: none queued — the phone may have cleared them.'
                   : 'Next alarm: none'}

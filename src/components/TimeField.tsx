@@ -1,6 +1,7 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { formatTime12 } from '../lib/timeFormat';
 import { colors } from '../theme';
 
 interface Props {
@@ -41,7 +42,8 @@ export function TimeField({ value, onChange }: Props) {
   return (
     <>
       <Pressable onPress={open} style={styles.field}>
-        <Text style={styles.text}>{value}</Text>
+        {/* Stored 24-hour, shown 12-hour with am/pm. */}
+        <Text style={styles.text}>{formatTime12(value)}</Text>
       </Pressable>
       {iosOpen && Platform.OS === 'ios' && (
         <DateTimePicker
@@ -64,5 +66,5 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
-  text: { fontSize: 16, fontWeight: '700', color: colors.accent, minWidth: 58 },
+  text: { fontSize: 16, fontWeight: '700', color: colors.accent, minWidth: 96 },
 });

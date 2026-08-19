@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDays, format, isAfter, isBefore, isSameDay, parseISO, startOfDay, startOfWeek } from 'date-fns';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { AlarmBadge } from '../components/AlarmBadge';
 import { useData } from '../lib/store';
@@ -22,8 +22,18 @@ type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
  *
  * Same editing rule as everywhere else: only today can be toggled.
  */
+const SIDE_PADDING = 16;
+const COL_GAP = 9;
+
 export function HabitGridScreen({ navigation }: Props) {
   const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
+  const { width } = useWindowDimensions();
+
+  // Column width is computed rather than left to `flex: 1`. Flex children stop
+  // sharing the row correctly inside the pinned-header wrapper — the day
+  // letters ended up stacked in a single column — and an explicit width
+  // behaves the same on every platform.
+  const colWidth = Math.floor((width - SIDE_PADDING * 2 - COL_GAP * 6) / 7);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -75,7 +85,7 @@ export function HabitGridScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
           <View style={styles.dayHeader}>
             {weekDates.map((date, i) => (
-              <View key={i} style={styles.dayCol}>
+              <View key={i} style={[styles.dayCol, { width: colWidth }]}>
                 <Text
                   style={[
                     styles.dayLetter,
@@ -122,11 +132,12 @@ export function HabitGridScreen({ navigation }: Props) {
                         key={i}
                         disabled={!isToday}
                         onPress={() => toggleHabitLog(habit.id, dateStr)}
-                        style={styles.dayCol}
+                        style={[styles.dayCol, { width: colWidth }]}
                       >
                         <View
                           style={[
                             styles.box,
+                            { width: colWidth, height: colWidth },
                             done ? styles.boxDone : notApplicable ? styles.boxFaded : styles.boxEmpty,
                             isToday && styles.boxToday,
                           ]}
@@ -166,25 +177,25 @@ const styles = StyleSheet.create({
   weekLabelWrap: { alignItems: 'center', minWidth: 130 },
   weekLabel: { fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'center', minWidth: 130 },
   weekSub: { fontSize: 11, color: colors.textSecondary, textAlign: 'center', minWidth: 130, marginTop: 1 },
-  content: { paddingHorizontal: 12, paddingBottom: 110 },
+  content: { paddingHorizontal: SIDE_PADDING, paddingBottom: 110 },
 
   // Opaque, or scrolled habits show through the pinned strip.
   dayHeader: {
     flexDirection: 'row',
-    gap: 6,
+    gap: COL_GAP,
     backgroundColor: colors.background,
     paddingTop: 6,
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  dayCol: { flex: 1, alignItems: 'center' },
+  dayCol: { alignItems: 'center' },
   dayLetter: {
-    width: '100%',
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textFaint,
+    color: colors.textSecondary,
+    minWidth: 16,
   },
   dayLetterToday: { color: colors.accent },
 
@@ -195,20 +206,19 @@ const styles = StyleSheet.create({
   streakEmoji: { fontSize: 13 },
   streakText: { fontSize: 13, fontWeight: '700', color: colors.clay, minWidth: 16 },
 
-  // Boxes size themselves from the available width rather than a fixed pixel
-  // budget — no arithmetic to keep balanced when something else changes.
-  boxRow: { flexDirection: 'row', gap: 6 },
+  boxRow: { flexDirection: 'row', gap: COL_GAP },
+  // Every box is outlined. Fill alone was nearly the same value as the page,
+  // so an empty week read as blank space rather than seven unticked days.
   box: {
-    width: '100%',
-    aspectRatio: 1,
     borderRadius: 11,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxDone: { backgroundColor: colors.accentMedium },
-  boxEmpty: { backgroundColor: colors.accentFaint },
-  boxFaded: { backgroundColor: colors.accentFaint, opacity: 0.4 },
-  boxToday: { borderWidth: 2, borderColor: colors.accentMedium },
+  boxDone: { backgroundColor: colors.accentMedium, borderColor: colors.accentMedium },
+  boxEmpty: { backgroundColor: colors.surface, borderColor: colors.accentSoft },
+  boxFaded: { backgroundColor: colors.accentFaint, borderColor: colors.border, opacity: 0.5 },
+  boxToday: { borderWidth: 2.5, borderColor: colors.accentMedium },
 
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8, paddingHorizontal: 24 },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text },

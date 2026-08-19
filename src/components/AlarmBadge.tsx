@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { formatTime12 } from '../lib/timeFormat';
 import { colors } from '../theme';
 import type { HabitReminder } from '../types';
 
@@ -25,10 +26,10 @@ export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
   const label = !isSet
     ? 'Set alarm'
     : reminders.length > 1
-      ? `${earliest!.time} +${reminders.length - 1}`
-      : earliest!.time;
+      ? `${formatTime12(earliest!.time)} +${reminders.length - 1}`
+      : formatTime12(earliest!.time);
 
-  const tint = isSet ? colors.accent : colors.textFaint;
+  const tint = isSet ? colors.accent : colors.textSecondary;
 
   if (variant === 'pill') {
     return (
@@ -52,7 +53,7 @@ export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
 
 const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
-  label: { fontSize: 13, fontWeight: '600', minWidth: 62 },
+  label: { fontSize: 13, fontWeight: '600', minWidth: 92 },
   pill: {
     width: 42,
     height: 42,
