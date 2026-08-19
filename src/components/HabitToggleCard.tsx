@@ -30,8 +30,8 @@ export function HabitToggleCard({
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.nameRow}>
+        <AlarmBadge reminders={reminders} onPress={onEditAlarms} variant="pill" />
         <Text style={styles.name}>{habit.name}</Text>
-        <AlarmBadge reminders={reminders} onPress={onEditAlarms} showTime />
       </View>
       <View style={styles.metaRow}>
         <WeekStrip logs={logs} createdAt={habit.created_at} onToggleDay={onToggleDay} />
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   name: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.text },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
   streakChip: {

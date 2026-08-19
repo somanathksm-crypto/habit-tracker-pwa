@@ -7,53 +7,59 @@ import type { HabitReminder } from '../types';
 interface Props {
   reminders: HabitReminder[];
   onPress: () => void;
-  /** Cards have room for the time itself; the grid only has room for the bell. */
-  showTime?: boolean;
+  /** Cards give it a filled pill; the grid keeps it inline and lighter. */
+  variant?: 'pill' | 'inline';
 }
 
 /**
- * Bell shown on a habit that has alarms set — tapping it jumps to the habit's
- * reminder settings. Renders a fixed-size empty slot when there are no alarms
- * so rows stay aligned whether or not a habit has one.
+ * The alarm control for a habit. Rendered whether or not an alarm is set —
+ * an unset habit still needs somewhere to tap to add one — and coloured only
+ * when there's actually an alarm, so a glance down the list shows which
+ * habits will ring.
  */
-export function AlarmBadge({ reminders, onPress, showTime = false }: Props) {
-  // The compact form keeps a fixed footprint whether or not it renders
-  // anything, so grid columns line up across every row.
-  if (reminders.length === 0) {
-    return showTime ? null : <View style={styles.slot} />;
-  }
+export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
+  const isSet = reminders.length > 0;
+  const earliest = isSet
+    ? [...reminders].sort((a, b) => a.time.localeCompare(b.time))[0]
+    : null;
+  const label = !isSet
+    ? 'Set alarm'
+    : reminders.length > 1
+      ? `${earliest!.time} +${reminders.length - 1}`
+      : earliest!.time;
 
-  const earliest = [...reminders].sort((a, b) => a.time.localeCompare(b.time))[0];
-  const label = reminders.length > 1 ? `${reminders.length}` : earliest.time;
+  const tint = isSet ? colors.accent : colors.textFaint;
 
-  if (!showTime) {
+  if (variant === 'pill') {
     return (
-      <Pressable onPress={onPress} hitSlop={10} style={styles.slot}>
-        <MaterialCommunityIcons name="bell-outline" size={15} color={colors.accent} />
+      <Pressable
+        onPress={onPress}
+        hitSlop={10}
+        style={[styles.pill, isSet ? styles.pillSet : styles.pillUnset]}
+      >
+        <MaterialCommunityIcons name="alarm" size={22} color={tint} />
       </Pressable>
     );
   }
 
   return (
-    <Pressable onPress={onPress} hitSlop={8} style={styles.pill}>
-      <MaterialCommunityIcons name="bell-outline" size={14} color={colors.accent} />
-      <Text style={styles.label}>{label}</Text>
+    <Pressable onPress={onPress} hitSlop={10} style={styles.inline}>
+      <MaterialCommunityIcons name="alarm" size={17} color={tint} />
+      <Text style={[styles.label, { color: tint }]}>{label}</Text>
     </Pressable>
   );
 }
 
-const SLOT = 18;
-
 const styles = StyleSheet.create({
-  slot: { width: SLOT, minWidth: SLOT, alignItems: 'center', justifyContent: 'center' },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
+  label: { fontSize: 13, fontWeight: '600', minWidth: 62 },
   pill: {
-    flexDirection: 'row',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.accentFaint,
-    borderRadius: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 6,
+    justifyContent: 'center',
   },
-  label: { fontSize: 11, fontWeight: '700', color: colors.accent, minWidth: 34 },
+  pillSet: { backgroundColor: colors.accentFaint },
+  pillUnset: { backgroundColor: colors.surfaceMuted },
 });

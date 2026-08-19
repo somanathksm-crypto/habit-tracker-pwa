@@ -99,10 +99,11 @@ export function occurrencesFor(reminder: HabitReminder, from: Date): Date[] {
  * Every alarm that should currently be registered with the OS, earliest first
  * and capped at [MAX_SCHEDULED].
  *
- * Repeating alarms are skipped for any day the habit is already completed —
- * that is the whole reason firings are computed here rather than handed to the
- * OS as a repeating trigger, since a repeating trigger can't skip one day. A
- * `once` reminder always fires: it was set for a specific moment on purpose.
+ * Alarms are skipped for any day the habit is already completed — that is the
+ * whole reason firings are computed here rather than handed to the OS as a
+ * repeating trigger, since a repeating trigger can't skip a single day. This
+ * applies to one-off reminders too: being already done is reason enough not to
+ * be nagged, whatever the repeat rule.
  */
 export function plannedOccurrences(
   reminders: HabitReminder[],
@@ -117,8 +118,7 @@ export function plannedOccurrences(
   const all: Occurrence[] = [];
   for (const reminder of reminders) {
     for (const date of occurrencesFor(reminder, from)) {
-      const alreadyDone = completed.has(`${reminder.habit_id}|${format(date, 'yyyy-MM-dd')}`);
-      if (alreadyDone && reminder.repeat.kind !== 'once') continue;
+      if (completed.has(`${reminder.habit_id}|${format(date, 'yyyy-MM-dd')}`)) continue;
       all.push({ reminder, date });
     }
   }
