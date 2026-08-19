@@ -1,6 +1,9 @@
 export type HabitCategory = 'diet' | 'skincare' | 'supplement' | 'general';
 export type FrequencyType = 'daily' | 'weekly' | 'custom';
 
+/** How the main habits screen is laid out — chosen on first launch, changeable in Settings. */
+export type HabitView = 'cards' | 'grid';
+
 export interface Habit {
   id: string;
   user_id: string;

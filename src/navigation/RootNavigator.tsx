@@ -3,7 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import { View } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddEditHabitScreen } from '../screens/AddEditHabitScreen';
+import { ChooseViewScreen } from '../screens/ChooseViewScreen';
 import { AddEditMetricScreen } from '../screens/AddEditMetricScreen';
 import { EditMetricTargetScreen } from '../screens/EditMetricTargetScreen';
 import { EditWeightGoalScreen } from '../screens/EditWeightGoalScreen';
@@ -15,6 +18,7 @@ import { PerformanceHubScreen } from '../screens/PerformanceHubScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TodayScreen } from '../screens/TodayScreen';
 import { WeightTrendScreen } from '../screens/WeightTrendScreen';
+import { useData } from '../lib/store';
 import { colors } from '../theme';
 import type { InsightsStackParamList, PerformanceStackParamList, RootTabParamList, TodayStackParamList } from './types';
 
@@ -31,10 +35,16 @@ const stackScreenOptions = {
   headerTitleStyle: { fontWeight: '700' as const },
 };
 
+/** The main habits screen, in whichever layout the user picked. */
+function HabitsHome(props: NativeStackScreenProps<TodayStackParamList, 'Today'>) {
+  const { habitView } = useData();
+  return habitView === 'grid' ? <HabitGridScreen {...props} /> : <TodayScreen {...props} />;
+}
+
 function TodayStackNavigator() {
   return (
     <TodayStack.Navigator screenOptions={stackScreenOptions}>
-      <TodayStack.Screen name="Today" component={TodayScreen} options={{ headerShown: false }} />
+      <TodayStack.Screen name="Today" component={HabitsHome} options={{ headerShown: false }} />
       <TodayStack.Screen name="HabitDetail" component={HabitDetailScreen} options={{ title: '' }} />
       <TodayStack.Screen
         name="AddEditHabit"
@@ -86,7 +96,6 @@ function SettingsStackNavigator() {
 
 const ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
   TodayTab: 'check-circle-outline',
-  GridTab: 'table',
   InsightsTab: 'chart-line',
   PerformanceTab: 'speedometer',
   SettingsTab: 'cog-outline',
@@ -94,13 +103,19 @@ const ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.
 
 const TAB_LABELS: Record<keyof RootTabParamList, string> = {
   TodayTab: 'Today',
-  GridTab: 'Grid',
   InsightsTab: 'Insights',
   PerformanceTab: 'Performance',
   SettingsTab: 'Settings',
 };
 
 export function RootNavigator() {
+  const { habitView, loading } = useData();
+
+  // Wait for stored state before deciding — otherwise the layout picker
+  // flashes for a moment on every launch for people who already chose.
+  if (loading) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!habitView) return <ChooseViewScreen />;
+
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -116,7 +131,6 @@ export function RootNavigator() {
         })}
       >
         <Tab.Screen name="TodayTab" component={TodayStackNavigator} />
-        <Tab.Screen name="GridTab" component={HabitGridScreen} />
         <Tab.Screen name="InsightsTab" component={InsightsStackNavigator} />
         <Tab.Screen name="PerformanceTab" component={PerformanceStackNavigator} />
         <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />

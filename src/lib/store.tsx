@@ -3,7 +3,7 @@ import { addDays, format, subDays } from 'date-fns';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { STARTER_HABITS } from './starterHabits';
 import { expectedWeightOn } from './stats';
-import type { FrequencyType, Habit, HabitCategory, HabitLog, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
+import type { FrequencyType, Habit, HabitCategory, HabitLog, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -19,6 +19,8 @@ interface StoredState {
   metrics: Metric[];
   metricLogs: MetricLog[];
   metricTargets: MetricTarget[];
+  /** null until the user picks a layout on first launch. */
+  habitView: HabitView | null;
 }
 
 const emptyState: StoredState = {
@@ -29,6 +31,7 @@ const emptyState: StoredState = {
   metrics: [],
   metricLogs: [],
   metricTargets: [],
+  habitView: null,
 };
 
 function uid(): string {
@@ -58,6 +61,7 @@ interface DataContextValue extends StoredState {
   upsertMetricLog: (metricId: string, logDate: string, value: number) => void;
   targetForMetric: (metricId: string) => MetricTarget | undefined;
   setMetricTarget: (metricId: string, target: Omit<MetricTarget, 'metric_id'>) => void;
+  setHabitView: (view: HabitView) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -276,6 +280,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               : [...s.metricTargets, next],
           };
         });
+      },
+      setHabitView: (view) => {
+        setState((s) => ({ ...s, habitView: view }));
       },
     }),
     [state, loading]

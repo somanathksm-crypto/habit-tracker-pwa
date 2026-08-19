@@ -1,18 +1,23 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDays, format, isAfter, isBefore, isSameDay, parseISO, startOfDay, startOfWeek } from 'date-fns';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FAB } from 'react-native-paper';
 import { useData } from '../lib/store';
 import { colors } from '../theme';
+import type { TodayStackParamList } from '../navigation/types';
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 
 /**
  * Week-at-a-glance grid: habits down the rows, Monday–Sunday across.
  * Earlier weeks can be browsed with the selector; as everywhere else in
  * the app, only today can actually be toggled — past days are history.
  */
-export function HabitGridScreen() {
+export function HabitGridScreen({ navigation }: Props) {
   const { habits, habitLogs, toggleHabitLog } = useData();
 
   const today = new Date();
@@ -61,7 +66,8 @@ export function HabitGridScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>No habits yet</Text>
           <Text style={styles.emptySubtitle}>
-            Add habits from the Today tab and they'll show up here.
+            Tap the + button below to add your first habit — diet, skincare, supplements, or
+            anything else you want to track daily.
           </Text>
         </View>
       ) : (
@@ -89,9 +95,14 @@ export function HabitGridScreen() {
               const created = startOfDay(parseISO(habit.created_at));
               return (
                 <View key={habit.id} style={styles.row}>
-                  <Text style={styles.habitName} numberOfLines={2}>
-                    {habit.name}
-                  </Text>
+                  <Pressable
+                    style={styles.nameWrap}
+                    onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}
+                  >
+                    <Text style={styles.habitName} numberOfLines={2}>
+                      {habit.name}
+                    </Text>
+                  </Pressable>
                   <View style={styles.days}>
                     {weekDates.map((date, i) => {
                       const dateStr = format(date, 'yyyy-MM-dd');
@@ -128,6 +139,14 @@ export function HabitGridScreen() {
           </View>
         </ScrollView>
       )}
+
+      <FAB
+        icon="plus"
+        label="Add Habit"
+        style={styles.fab}
+        color="#fff"
+        onPress={() => navigation.navigate('AddEditHabit', {})}
+      />
     </View>
   );
 }
@@ -146,7 +165,7 @@ const styles = StyleSheet.create({
   weekLabelWrap: { alignItems: 'center', minWidth: 130 },
   weekLabel: { fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'center', minWidth: 130 },
   weekSub: { fontSize: 11, color: colors.textSecondary, textAlign: 'center', minWidth: 130, marginTop: 1 },
-  content: { padding: 16, paddingBottom: 40 },
+  content: { padding: 16, paddingBottom: 100 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -177,6 +196,7 @@ const styles = StyleSheet.create({
   },
   dayLetterToday: { color: colors.accent },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
+  nameWrap: { width: NAME_W, minWidth: NAME_W },
   habitName: { width: NAME_W, minWidth: NAME_W, fontSize: 13, color: colors.text, lineHeight: 17, paddingRight: 8 },
   box: {
     width: BOX,
@@ -192,4 +212,5 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8, paddingHorizontal: 24 },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
   emptySubtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 19 },
+  fab: { position: 'absolute', right: 16, bottom: 20, backgroundColor: colors.accent },
 });

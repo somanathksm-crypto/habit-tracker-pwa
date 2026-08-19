@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Switch } from 'react-native-paper';
 import { useData } from '../lib/store';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { colors } from '../theme';
+import type { HabitView } from '../types';
+
+const VIEW_OPTIONS: { value: HabitView; label: string; description: string }[] = [
+  { value: 'cards', label: 'One card per habit', description: "Streak, this week's progress, and nudges" },
+  { value: 'grid', label: 'Weekly grid', description: 'Every habit on one line, Mon–Sun across' },
+];
 
 export function SettingsScreen() {
   const [reminder, setReminder] = useState(false);
-  const { habits, seedStarterHabits, seedDemoData } = useData();
+  const { habits, seedStarterHabits, seedDemoData, habitView, setHabitView } = useData();
 
   const loadStarterHabits = () => {
     const added = seedStarterHabits();
@@ -37,6 +43,26 @@ export function SettingsScreen() {
             {isSupabaseConfigured ? 'Connected to Supabase' : 'Not connected — running on local device storage'}
           </Text>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Habit layout</Text>
+        {VIEW_OPTIONS.map((opt) => {
+          const active = habitView === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => setHabitView(opt.value)}
+              style={[styles.card, styles.row, active && styles.cardActive]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{opt.label}</Text>
+                <Text style={styles.rowSubtitle}>{opt.description}</Text>
+              </View>
+              <Text style={[styles.check, !active && styles.checkHidden]}>✓</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.section}>
@@ -87,6 +113,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
   },
+  cardActive: { borderColor: colors.accentMedium, backgroundColor: colors.accentFaint },
+  check: { fontSize: 17, fontWeight: '700', color: colors.accent, minWidth: 24, textAlign: 'right' },
+  checkHidden: { opacity: 0 },
   row: { flexDirection: 'row', alignItems: 'center' },
   rowLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   rowSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
