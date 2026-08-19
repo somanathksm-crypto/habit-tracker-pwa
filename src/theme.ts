@@ -1,3 +1,4 @@
+import React, { createContext, useContext, useMemo } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { configureFonts, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
@@ -112,19 +113,70 @@ export const darkColors: Colors = {
   today: '#5B9BD5',
 };
 
+/** 'system' defers to the phone; the other two override it. */
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 /**
- * The active palette, following the phone's own light/dark setting.
+ * Whether the dark palette applies, given a stored preference and whatever the
+ * phone reports.
  *
- * This only reports dark because `userInterfaceStyle` is "automatic" in
- * app.json — left at "light", the OS answers light forever and the dark
- * palette silently never appears.
+ * The OS only ever answers 'dark' because `userInterfaceStyle` is "automatic"
+ * in app.json — left at "light" it says light forever and 'system' would never
+ * resolve dark.
  */
+export function isDarkFor(mode: ThemeMode, systemScheme: 'light' | 'dark' | null | undefined): boolean {
+  if (mode === 'dark') return true;
+  if (mode === 'light') return false;
+  return systemScheme === 'dark';
+}
+
+interface ThemeValue {
+  colors: Colors;
+  isDark: boolean;
+  theme: MD3Theme;
+}
+
+/**
+ * Defaults to following the phone, so a component rendered outside the provider
+ * still gets a sensible palette rather than throwing.
+ */
+const ThemeContext = createContext<ThemeValue | null>(null);
+
+/**
+ * Resolves the palette once, here, rather than in each of the twenty-odd
+ * components that read it — they all call [useColors] and stay unaware of where
+ * the choice came from. Must sit inside DataProvider, since the preference is
+ * stored state.
+ */
+export function ThemeProvider({ mode, children }: { mode: ThemeMode; children: React.ReactNode }) {
+  const systemScheme = useColorScheme();
+  const value = useMemo<ThemeValue>(() => {
+    const isDark = isDarkFor(mode, systemScheme);
+    return {
+      isDark,
+      colors: isDark ? darkColors : lightColors,
+      theme: isDark ? darkTheme : lightTheme,
+    };
+  }, [mode, systemScheme]);
+
+  return React.createElement(ThemeContext.Provider, { value }, children);
+}
+
+function useTheme(): ThemeValue {
+  const ctx = useContext(ThemeContext);
+  const systemScheme = useColorScheme();
+  if (ctx) return ctx;
+  // No provider above (only App's own tree lacks one) — fall back to the phone.
+  const isDark = systemScheme === 'dark';
+  return { isDark, colors: isDark ? darkColors : lightColors, theme: isDark ? darkTheme : lightTheme };
+}
+
 export function useColors(): Colors {
-  return useColorScheme() === 'dark' ? darkColors : lightColors;
+  return useTheme().colors;
 }
 
 export function useIsDark(): boolean {
-  return useColorScheme() === 'dark';
+  return useTheme().isDark;
 }
 
 // React Native Paper's default MD3 type scale uses a distinct "medium"
@@ -161,5 +213,5 @@ export const lightTheme = buildPaperTheme(lightColors, MD3LightTheme);
 export const darkTheme = buildPaperTheme(darkColors, MD3DarkTheme);
 
 export function usePaperTheme(): MD3Theme {
-  return useColorScheme() === 'dark' ? darkTheme : lightTheme;
+  return useTheme().theme;
 }

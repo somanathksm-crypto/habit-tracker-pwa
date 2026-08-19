@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { HabitToggleCard } from '../components/HabitToggleCard';
 import { LayoutToggle } from '../components/LayoutToggle';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
 import { todayStr } from '../lib/stats';
@@ -37,6 +38,7 @@ export function TodayScreen({ navigation }: Props) {
           <View style={styles.headerActions}>
             {habits.length > 0 && <ProgressRing completed={doneCount} total={habits.length} />}
             <LayoutToggle />
+            <ThemeToggle />
           </View>
         </View>
 

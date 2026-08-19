@@ -9,6 +9,7 @@ import {
 } from './notificationActions';
 import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
 import { DEFAULT_SCHEDULE } from '../types';
+import type { ThemeMode } from '../theme';
 import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
@@ -28,6 +29,8 @@ interface StoredState {
   remindersEnabled: boolean;
   /** Whether we've already offered the battery-exemption prompt, so it's asked once. */
   batteryPromptShown: boolean;
+  /** 'system' follows the phone; the others override it. */
+  themePreference: ThemeMode;
 }
 
 const emptyState: StoredState = {
@@ -39,6 +42,7 @@ const emptyState: StoredState = {
   reminders: [],
   remindersEnabled: false,
   batteryPromptShown: false,
+  themePreference: 'system',
 };
 
 function uid(): string {
@@ -65,6 +69,7 @@ interface DataContextValue extends StoredState {
   setRemindersForHabit: (habitId: string, reminders: Omit<HabitReminder, 'id' | 'habit_id'>[]) => void;
   setRemindersEnabled: (enabled: boolean) => void;
   markBatteryPromptShown: () => void;
+  setThemePreference: (mode: ThemeMode) => void;
 }
 
 /**
@@ -77,6 +82,7 @@ function migrate(state: StoredState): StoredState {
     ...state,
     // Installs from before the layout picker was dropped stored null here.
     habitView: state.habitView ?? 'cards',
+    themePreference: state.themePreference ?? 'system',
     // Habits predate schedules and were all once a day.
     habits: state.habits.map((h) => (h.schedule ? h : { ...h, schedule: { ...DEFAULT_SCHEDULE } })),
   };
@@ -261,6 +267,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       setRemindersEnabled: (enabled) => {
         setState((s) => ({ ...s, remindersEnabled: enabled }));
+      },
+      setThemePreference: (mode) => {
+        setState((s) => ({ ...s, themePreference: mode }));
       },
       markBatteryPromptShown: () => {
         setState((s) => ({ ...s, batteryPromptShown: true }));

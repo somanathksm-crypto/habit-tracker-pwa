@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { FAB } from 'react-native-paper';
 import { AlarmBadge } from '../components/AlarmBadge';
 import { LayoutToggle } from '../components/LayoutToggle';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useData } from '../lib/store';
 import { describeProgress, hasNonTrivialSchedule, isDueOn, periodStreak, progressFor } from '../lib/habitSchedule';
 import { useColors, type Colors } from '../theme';
@@ -60,7 +61,10 @@ export function HabitGridScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Habits</Text>
-          <LayoutToggle />
+          <View style={styles.headerActions}>
+            <LayoutToggle />
+            <ThemeToggle />
+          </View>
         </View>
         <View style={styles.weekRow}>
           <Pressable hitSlop={10} onPress={() => setWeekStart((w) => addDays(w, -7))}>
@@ -191,6 +195,7 @@ const makeStyles = (colors: Colors) =>
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 24, fontWeight: '800', color: colors.text },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   weekArrow: { fontSize: 22, color: colors.accent, fontWeight: '700', paddingHorizontal: 18 },
