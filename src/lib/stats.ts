@@ -10,7 +10,7 @@ import {
   startOfMonth,
 } from 'date-fns';
 import { expectedOccurrences, isDueOn, missedPeriodStreak, periodNoun } from './habitSchedule';
-import type { Habit, HabitLog, Metric, MetricLog, MetricTarget } from '../types';
+import type { Habit, HabitLog } from '../types';
 
 export const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
@@ -78,7 +78,7 @@ export function habitNudge(habit: Habit, logs: HabitLog[]): HabitNudge | null {
   };
 }
 
-/** Shared shape of anything tracked toward a numeric target over time — both WeightTarget and MetricTarget satisfy this structurally. */
+/** Shared shape of anything tracked toward a numeric target over time — WeightTarget satisfies this structurally. */
 export interface TrackedTarget {
   start_value: number;
   target_value: number;
@@ -196,62 +196,3 @@ export function weightPace(target: TrackedTarget, currentValue: number): WeightP
   const ahead = losingWeight ? diff < 0 : diff > 0;
   return ahead ? 'ahead' : 'behind';
 }
-
-export interface MetricsOverview {
-  tracked: number;
-  onTrack: number;
-  behind: number;
-}
-
-/** Counts metrics by pace, for the Performance hub's insight strip. Metrics with no target or no logs yet don't count toward either bucket. */
-export function metricsOverview(metrics: Metric[], metricLogs: MetricLog[], metricTargets: MetricTarget[]): MetricsOverview {
-  let onTrack = 0;
-  let behind = 0;
-  for (const metric of metrics) {
-    const target = metricTargets.find((t) => t.metric_id === metric.id);
-    if (!target) continue;
-    const logs = metricLogs.filter((l) => l.metric_id === metric.id).sort((a, b) => a.log_date.localeCompare(b.log_date));
-    const current = logs[logs.length - 1];
-    if (!current) continue;
-    const pace = weightPace(target, current.value);
-    if (pace === 'ahead' || pace === 'on-track') onTrack += 1;
-    else if (pace === 'behind') behind += 1;
-  }
-  return { tracked: metrics.length, onTrack, behind };
-}
-
-/** Best (max if higherIsBetter, else min) value ever logged, or null if there are no logs. */
-export function bestMetricValue(logs: MetricLog[], higherIsBetter: boolean): number | null {
-  if (logs.length === 0) return null;
-  return logs.reduce(
-    (best, l) => (higherIsBetter ? Math.max(best, l.value) : Math.min(best, l.value)),
-    higherIsBetter ? -Infinity : Infinity
-  );
-}
-
-/**
- * True if `newValue` strictly beats the best of `priorLogs`. A first-ever
- * log (empty `priorLogs`) is a baseline, not a PR — nothing to beat yet.
- * Ties do not count as a PR.
- */
-export function isMetricPersonalRecord(priorLogs: MetricLog[], newValue: number, higherIsBetter: boolean): boolean {
-  const best = bestMetricValue(priorLogs, higherIsBetter);
-  if (best === null) return false;
-  return higherIsBetter ? newValue > best : newValue < best;
-}
-
-/** Consecutive days (ending today, or yesterday if today isn't logged yet) with at least one log for this metric — independent of value or any target. */
-export function metricLoggingStreak(logs: MetricLog[]): number {
-  const logged = new Set(logs.map((l) => l.log_date));
-  let cursor = new Date();
-  if (!logged.has(format(cursor, 'yyyy-MM-dd'))) {
-    cursor = addDays(cursor, -1);
-  }
-  let streak = 0;
-  while (logged.has(format(cursor, 'yyyy-MM-dd'))) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return streak;
-}
-

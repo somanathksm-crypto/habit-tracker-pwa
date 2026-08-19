@@ -1,11 +1,8 @@
-import { Area, CartesianChart } from 'victory-native';
-import { addDays, addMonths, format, getDaysInMonth, isAfter, isSameMonth, parseISO, startOfMonth } from 'date-fns';
+import { addMonths, format, isSameMonth, startOfMonth } from 'date-fns';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useData } from '../lib/store';
-import { isDueOn } from '../lib/habitSchedule';
 import { globalProgress, monthlyWeekBreakdown } from '../lib/stats';
-import { useSkiaStatus } from '../lib/useSkiaReady';
 import { colors } from '../theme';
 import type { InsightsStackParamList } from '../navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,47 +19,6 @@ export function InsightsScreen(_props: Props) {
     [habits, habitLogs, selectedMonth]
   );
   const global = useMemo(() => globalProgress(habits, habitLogs), [habits, habitLogs]);
-  const skiaStatus = useSkiaStatus();
-
-  // Full month (all days, not just the weeks that have started) so the
-  // chart's x-axis always spans day 1 to the last day of the month —
-  // future days are left with no y-value, so the area just stops instead
-  // of stretching what data exists across the whole chart width.
-  const dailyChartData = useMemo(() => {
-    const completedByDate = new Map<string, number>();
-    for (const log of habitLogs) {
-      if (!log.completed) continue;
-      completedByDate.set(log.log_date, (completedByDate.get(log.log_date) ?? 0) + 1);
-    }
-    const today = new Date();
-    const monthStart = startOfMonth(selectedMonth);
-    const daysInMonth = getDaysInMonth(selectedMonth);
-
-    return Array.from({ length: daysInMonth }, (_, i) => {
-      const date = addDays(monthStart, i);
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const future = isAfter(date, today);
-      const completed = future ? 0 : (completedByDate.get(dateStr) ?? 0);
-      // Denominator is what was due that day. A day nothing was scheduled for
-      // is not a 0% day — it has no rate at all, so the area simply skips it.
-      const due = habits.filter((h) => isDueOn(h, date)).length;
-      return {
-        day: i + 1,
-        date: dateStr,
-        pct: future || due === 0 ? null : Math.round((completed / due) * 100),
-      };
-    });
-  }, [habitLogs, habits, selectedMonth]);
-
-  // Index of the last day that actually has data — where the area chart
-  // visually stops. Falls back to the last day of the month if every day
-  // has data (nothing left "future").
-  const latestDataIdx = useMemo(() => {
-    for (let i = dailyChartData.length - 1; i >= 0; i--) {
-      if (dailyChartData[i].pct !== null) return i;
-    }
-    return dailyChartData.length - 1;
-  }, [dailyChartData]);
 
   // Default to the current/latest week whenever the viewed month changes.
   useEffect(() => {
@@ -123,46 +79,6 @@ export function InsightsScreen(_props: Props) {
         </View>
       ) : (
         <>
-          <View style={[styles.card, styles.dailyChartCard]}>
-            <Text style={styles.dailyChartTitle}>Daily completion — {format(selectedMonth, 'MMMM')}</Text>
-            {dailyChartData.length === 0 ? (
-              <Text style={styles.emptyChart}>No data yet</Text>
-            ) : skiaStatus === 'unavailable' ? (
-              <Text style={styles.emptyChart}>Charts aren't supported in this preview</Text>
-            ) : skiaStatus === 'loading' ? (
-              <Text style={styles.emptyChart}>Loading chart…</Text>
-            ) : (
-              <>
-                <View style={styles.chartWithAxis}>
-                  <View style={styles.yAxis}>
-                    <Text style={styles.axisLabel}>100%</Text>
-                    <Text style={styles.axisLabel}>50%</Text>
-                    <Text style={styles.axisLabel}>0%</Text>
-                  </View>
-                  <View style={styles.chartArea}>
-                    <CartesianChart data={dailyChartData} xKey="day" yKeys={['pct']} domain={{ y: [0, 100] }}>
-                      {({ points, chartBounds }) => (
-                        <Area
-                          points={points.pct}
-                          y0={chartBounds.bottom}
-                          color={colors.accentSoft}
-                          curveType="natural"
-                        />
-                      )}
-                    </CartesianChart>
-                  </View>
-                </View>
-                <View style={styles.xAxis}>
-                  <Text style={styles.axisLabel}>{format(parseISO(dailyChartData[0].date), 'd')}</Text>
-                  <Text style={styles.axisLabel}>{format(parseISO(dailyChartData[latestDataIdx].date), 'd')}</Text>
-                  <Text style={styles.axisLabel}>
-                    {format(parseISO(dailyChartData[dailyChartData.length - 1].date), 'd')}
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
-
           <View style={styles.weekChipRow}>
             {monthWeeks.map((w, i) => (
               <Pressable key={w.label} onPress={() => setSelectedIdx(i)} style={styles.weekChipWrap}>
@@ -285,13 +201,7 @@ const styles = StyleSheet.create({
   monthLabel: { fontSize: 15, fontWeight: '700', color: colors.text, minWidth: 130, textAlign: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: colors.textSecondary, fontSize: 13, textAlign: 'center' },
-  dailyChartCard: { marginBottom: 16 },
-  dailyChartTitle: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 10 },
-  emptyChart: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 40 },
-  chartWithAxis: { flexDirection: 'row', height: 130 },
   yAxis: { width: 34, justifyContent: 'space-between', paddingVertical: 2 },
-  chartArea: { flex: 1 },
-  xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingLeft: 34 },
   axisLabel: { fontSize: 10, fontWeight: '600', color: colors.textFaint },
   weekChipRow: { flexDirection: 'row', flexWrap: 'wrap' },
   weekChipWrap: { marginRight: 8, marginBottom: 8 },

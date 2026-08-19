@@ -6,25 +6,19 @@ import React from 'react';
 import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddEditHabitScreen } from '../screens/AddEditHabitScreen';
-import { ChooseViewScreen } from '../screens/ChooseViewScreen';
-import { AddEditMetricScreen } from '../screens/AddEditMetricScreen';
-import { EditMetricTargetScreen } from '../screens/EditMetricTargetScreen';
 import { EditWeightGoalScreen } from '../screens/EditWeightGoalScreen';
 import { HabitDetailScreen } from '../screens/HabitDetailScreen';
 import { HabitGridScreen } from '../screens/HabitGridScreen';
 import { InsightsScreen } from '../screens/InsightsScreen';
-import { MetricDetailScreen } from '../screens/MetricDetailScreen';
-import { PerformanceHubScreen } from '../screens/PerformanceHubScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TodayScreen } from '../screens/TodayScreen';
 import { WeightTrendScreen } from '../screens/WeightTrendScreen';
 import { useData } from '../lib/store';
 import { colors } from '../theme';
-import type { InsightsStackParamList, PerformanceStackParamList, RootTabParamList, TodayStackParamList } from './types';
+import type { InsightsStackParamList, RootTabParamList, TodayStackParamList } from './types';
 
 const TodayStack = createNativeStackNavigator<TodayStackParamList>();
 const InsightsStack = createNativeStackNavigator<InsightsStackParamList>();
-const PerformanceStack = createNativeStackNavigator<PerformanceStackParamList>();
 const SettingsStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
@@ -71,20 +65,6 @@ function InsightsStackNavigator() {
   );
 }
 
-function PerformanceStackNavigator() {
-  return (
-    <PerformanceStack.Navigator screenOptions={stackScreenOptions}>
-      <PerformanceStack.Screen name="PerformanceHub" component={PerformanceHubScreen} options={{ headerShown: false }} />
-      <PerformanceStack.Screen name="MetricDetail" component={MetricDetailScreen} options={{ title: '' }} />
-      <PerformanceStack.Screen
-        name="AddEditMetric"
-        component={AddEditMetricScreen}
-        options={({ route }) => ({ title: route.params?.metricId ? 'Edit metric' : 'Add metric' })}
-      />
-      <PerformanceStack.Screen name="EditMetricTarget" component={EditMetricTargetScreen} options={{ title: 'Target' }} />
-    </PerformanceStack.Navigator>
-  );
-}
 
 function SettingsStackNavigator() {
   return (
@@ -97,24 +77,21 @@ function SettingsStackNavigator() {
 const ICONS: Record<keyof RootTabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
   TodayTab: 'check-circle-outline',
   InsightsTab: 'chart-line',
-  PerformanceTab: 'speedometer',
   SettingsTab: 'cog-outline',
 };
 
 const TAB_LABELS: Record<keyof RootTabParamList, string> = {
   TodayTab: 'Today',
   InsightsTab: 'Insights',
-  PerformanceTab: 'Performance',
   SettingsTab: 'Settings',
 };
 
 export function RootNavigator() {
-  const { habitView, loading } = useData();
+  const { loading } = useData();
 
-  // Wait for stored state before deciding — otherwise the layout picker
-  // flashes for a moment on every launch for people who already chose.
+  // Hold the empty background until stored state lands, so the habits screen
+  // doesn't render once with the default layout and then swap.
   if (loading) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
-  if (!habitView) return <ChooseViewScreen />;
 
   return (
     <NavigationContainer>
@@ -132,7 +109,6 @@ export function RootNavigator() {
       >
         <Tab.Screen name="TodayTab" component={TodayStackNavigator} />
         <Tab.Screen name="InsightsTab" component={InsightsStackNavigator} />
-        <Tab.Screen name="PerformanceTab" component={PerformanceStackNavigator} />
         <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />
       </Tab.Navigator>
     </NavigationContainer>

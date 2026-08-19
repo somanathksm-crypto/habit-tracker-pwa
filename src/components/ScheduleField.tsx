@@ -44,12 +44,7 @@ export function ScheduleField({ value, onChange }: Props) {
         })}
       </View>
 
-      {value.period === 'day' && (
-        <Text style={styles.hint}>
-          Due once a day. For something due at several set times, add a habit for each — they get
-          their own alarm and you can see which one you actually miss.
-        </Text>
-      )}
+      {value.period === 'day' && <Text style={styles.hint}>Due every day.</Text>}
 
       {value.period === 'week' && <WeekPicker value={value} onChange={onChange} />}
       {value.period === 'custom' && <DatePicker value={value} onChange={onChange} />}
@@ -191,6 +186,8 @@ function DatePicker({
           );
         })}
       </View>
+
+      <Text style={styles.hint}>Only these dates — it finishes once they've passed.</Text>
     </View>
   );
 }
@@ -227,7 +224,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentMedium },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, minWidth: 46, textAlign: 'center' },
+  // Sized past the longest label ('Custom'). Android under-measures short Text
+  // by roughly a character, so an exact-fit minWidth silently truncates.
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, minWidth: 62, textAlign: 'center' },
   chipTextActive: { color: colors.accent },
   weekRow: { flexDirection: 'row', gap: 6 },
   dayBox: {

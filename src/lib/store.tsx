@@ -1,9 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { addDays, format, subDays } from 'date-fns';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
-import { STARTER_HABITS } from './starterHabits';
-import { expectedWeightOn } from './stats';
 import { syncScheduledReminders } from './notifications';
 import {
   addForegroundActionListener,
@@ -12,7 +9,7 @@ import {
 } from './notificationActions';
 import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
 import { DEFAULT_SCHEDULE } from '../types';
-import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, Metric, MetricLog, MetricTarget, WeightLog, WeightTarget } from '../types';
+import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -25,11 +22,7 @@ interface StoredState {
   habitLogs: HabitLog[];
   weightLogs: WeightLog[];
   weightTarget: WeightTarget | null;
-  metrics: Metric[];
-  metricLogs: MetricLog[];
-  metricTargets: MetricTarget[];
-  /** null until the user picks a layout on first launch. */
-  habitView: HabitView | null;
+  habitView: HabitView;
   reminders: HabitReminder[];
   /** Master switch — off means nothing is scheduled regardless of per-habit times. */
   remindersEnabled: boolean;
@@ -42,10 +35,7 @@ const emptyState: StoredState = {
   habitLogs: [],
   weightLogs: [],
   weightTarget: null,
-  metrics: [],
-  metricLogs: [],
-  metricTargets: [],
-  habitView: null,
+  habitView: 'cards',
   reminders: [],
   remindersEnabled: false,
   batteryPromptShown: false,
@@ -66,19 +56,10 @@ interface DataContextValue extends StoredState {
     patch: Partial<Pick<Habit, 'name' | 'schedule'>>
   ) => void;
   deleteHabit: (id: string) => void;
-  seedStarterHabits: () => number;
-  seedDemoData: () => void;
   toggleHabitLog: (habitId: string, logDate: string) => void;
   logsForHabit: (habitId: string) => HabitLog[];
   upsertWeightLog: (logDate: string, value: number) => void;
   setWeightTarget: (target: Omit<WeightTarget, 'user_id'>) => void;
-  addMetric: (input: { name: string; unit: string; higher_is_better: boolean }) => Metric;
-  updateMetric: (id: string, patch: Partial<Pick<Metric, 'name' | 'unit' | 'higher_is_better'>>) => void;
-  deleteMetric: (id: string) => void;
-  logsForMetric: (metricId: string) => MetricLog[];
-  upsertMetricLog: (metricId: string, logDate: string, value: number) => void;
-  targetForMetric: (metricId: string) => MetricTarget | undefined;
-  setMetricTarget: (metricId: string, target: Omit<MetricTarget, 'metric_id'>) => void;
   setHabitView: (view: HabitView) => void;
   remindersForHabit: (habitId: string) => HabitReminder[];
   setRemindersForHabit: (habitId: string, reminders: Omit<HabitReminder, 'id' | 'habit_id'>[]) => void;
@@ -94,6 +75,8 @@ interface DataContextValue extends StoredState {
 function migrate(state: StoredState): StoredState {
   return {
     ...state,
+    // Installs from before the layout picker was dropped stored null here.
+    habitView: state.habitView ?? 'cards',
     // Habits predate schedules and were all once a day.
     habits: state.habits.map((h) => (h.schedule ? h : { ...h, schedule: { ...DEFAULT_SCHEDULE } })),
   };
@@ -110,9 +93,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         // Merge onto emptyState rather than replacing it outright — a
-        // snapshot saved before a new field/collection existed (e.g. an
-        // older session's data missing metrics/metricLogs/metricTargets)
-        // would otherwise leave those keys undefined instead of [].
+        // snapshot saved before a new field/collection existed would
+        // otherwise leave those keys undefined instead of [].
         if (raw) setState(migrate({ ...emptyState, ...JSON.parse(raw) }));
       } finally {
         setLoading(false);
@@ -223,78 +205,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           reminders: s.reminders.filter((r) => r.habit_id !== id),
         }));
       },
-      seedStarterHabits: () => {
-        const existingNames = new Set(state.habits.map((h) => h.name.trim().toLowerCase()));
-        const toAdd = STARTER_HABITS.filter((h) => !existingNames.has(h.name.trim().toLowerCase()));
-        if (toAdd.length === 0) return 0;
-        const now = new Date().toISOString();
-        const newHabits: Habit[] = toAdd.map((h) => ({
-          id: uid(),
-          user_id: LOCAL_USER_ID,
-          name: h.name,
-          schedule: h.schedule,
-          created_at: now,
-        }));
-        setState((s) => ({ ...s, habits: [...s.habits, ...newHabits] }));
-        return newHabits.length;
-      },
-      // Preview-only: fills every current habit with random history and
-      // generates a plausible weight trend, so the UI can be reviewed
-      // populated instead of empty. Not real data — replaces existing
-      // logs/weight history each time it's run.
-      seedDemoData: () => {
-        setState((s) => {
-          const days = 45;
-          const habitIds = new Set(s.habits.map((h) => h.id));
-          const keptLogs = s.habitLogs.filter((l) => !habitIds.has(l.habit_id));
-
-          const newLogs: HabitLog[] = [];
-          for (const habit of s.habits) {
-            const bias = habit.schedule?.period === 'week' ? 0.15 + Math.random() * 0.15 : 0.5 + Math.random() * 0.4;
-            for (let i = days; i >= 0; i--) {
-              if (Math.random() < bias) {
-                newLogs.push({
-                  id: uid(),
-                  habit_id: habit.id,
-                  log_date: format(subDays(new Date(), i), 'yyyy-MM-dd'),
-                  completed: true,
-                });
-              }
-            }
-          }
-
-          const weightTarget: WeightTarget = s.weightTarget ?? {
-            user_id: LOCAL_USER_ID,
-            start_value: 78 + Math.round(Math.random() * 6),
-            target_value: 0, // placeholder, set below
-            start_date: format(subDays(new Date(), days), 'yyyy-MM-dd'),
-            target_date: format(addDays(new Date(), 60), 'yyyy-MM-dd'),
-          };
-          if (!s.weightTarget) {
-            weightTarget.target_value = weightTarget.start_value - (6 + Math.round(Math.random() * 6));
-          }
-
-          const newWeightLogs: WeightLog[] = [];
-          for (let i = days; i >= 0; i--) {
-            const logDate = format(subDays(new Date(), i), 'yyyy-MM-dd');
-            const expected = expectedWeightOn(weightTarget, logDate);
-            const noise = (Math.random() - 0.5) * 3;
-            newWeightLogs.push({
-              id: uid(),
-              user_id: LOCAL_USER_ID,
-              log_date: logDate,
-              value: Math.round((expected + noise) * 10) / 10,
-            });
-          }
-
-          return {
-            ...s,
-            habitLogs: [...keptLogs, ...newLogs],
-            weightTarget,
-            weightLogs: newWeightLogs,
-          };
-        });
-      },
       toggleHabitLog: (habitId, logDate) => {
         setState((s) => {
           const existing = s.habitLogs.find((l) => l.habit_id === habitId && l.log_date === logDate);
@@ -323,59 +233,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       },
       setWeightTarget: (target) => {
         setState((s) => ({ ...s, weightTarget: { ...target, user_id: LOCAL_USER_ID } }));
-      },
-      addMetric: ({ name, unit, higher_is_better }) => {
-        const metric: Metric = {
-          id: uid(),
-          user_id: LOCAL_USER_ID,
-          name,
-          unit,
-          higher_is_better,
-          created_at: new Date().toISOString(),
-        };
-        setState((s) => ({ ...s, metrics: [...s.metrics, metric] }));
-        return metric;
-      },
-      updateMetric: (id, patch) => {
-        setState((s) => ({
-          ...s,
-          metrics: s.metrics.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-        }));
-      },
-      deleteMetric: (id) => {
-        setState((s) => ({
-          ...s,
-          metrics: s.metrics.filter((m) => m.id !== id),
-          metricLogs: s.metricLogs.filter((l) => l.metric_id !== id),
-          metricTargets: s.metricTargets.filter((t) => t.metric_id !== id),
-        }));
-      },
-      logsForMetric: (metricId) => state.metricLogs.filter((l) => l.metric_id === metricId),
-      upsertMetricLog: (metricId, logDate, value) => {
-        setState((s) => {
-          const existing = s.metricLogs.find((l) => l.metric_id === metricId && l.log_date === logDate);
-          if (existing) {
-            return {
-              ...s,
-              metricLogs: s.metricLogs.map((l) => (l.id === existing.id ? { ...l, value } : l)),
-            };
-          }
-          const log: MetricLog = { id: uid(), metric_id: metricId, log_date: logDate, value };
-          return { ...s, metricLogs: [...s.metricLogs, log] };
-        });
-      },
-      targetForMetric: (metricId) => state.metricTargets.find((t) => t.metric_id === metricId),
-      setMetricTarget: (metricId, target) => {
-        setState((s) => {
-          const next: MetricTarget = { ...target, metric_id: metricId };
-          const exists = s.metricTargets.some((t) => t.metric_id === metricId);
-          return {
-            ...s,
-            metricTargets: exists
-              ? s.metricTargets.map((t) => (t.metric_id === metricId ? next : t))
-              : [...s.metricTargets, next],
-          };
-        });
       },
       setHabitView: (view) => {
         setState((s) => ({ ...s, habitView: view }));

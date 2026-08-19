@@ -26,7 +26,10 @@
         "VIBRATE",
         "WAKE_LOCK",
         "RECEIVE_BOOT_COMPLETED"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "fingerprint"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -52,6 +55,9 @@
       "eas": {
         "projectId": "37ef7ac4-7f20-463f-8198-60d3f31d3d29"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/37ef7ac4-7f20-463f-8198-60d3f31d3d29"
     }
   }
 }
