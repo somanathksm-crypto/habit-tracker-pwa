@@ -1,14 +1,13 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDays, format, isAfter, isBefore, isSameDay, parseISO, startOfDay, startOfWeek } from 'date-fns';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { AlarmBadge } from '../components/AlarmBadge';
 import { LayoutToggle } from '../components/LayoutToggle';
 import { useData } from '../lib/store';
 import { describeProgress, hasNonTrivialSchedule, isDueOn, periodStreak, progressFor } from '../lib/habitSchedule';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -27,6 +26,8 @@ const SIDE_PADDING = 16;
 const COL_GAP = 9;
 
 export function HabitGridScreen({ navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
   const { width } = useWindowDimensions();
 
@@ -162,11 +163,7 @@ export function HabitGridScreen({ navigation }: Props) {
                             done ? styles.boxDone : notApplicable ? styles.boxFaded : styles.boxEmpty,
                             isToday && styles.boxToday,
                           ]}
-                        >
-                          {done && (
-                            <MaterialCommunityIcons name="check" size={22} color={colors.accentInk} />
-                          )}
-                        </View>
+                        />
                       </Pressable>
                     );
                   })}
@@ -189,7 +186,8 @@ export function HabitGridScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -220,7 +218,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     minWidth: 16,
   },
-  dayLetterToday: { color: colors.accent },
+  dayLetterToday: { color: colors.today },
 
   habitBlock: { paddingTop: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   habitName: { fontSize: 16, fontWeight: '600', color: colors.text, lineHeight: 21 },
@@ -237,13 +235,11 @@ const styles = StyleSheet.create({
   box: {
     borderRadius: 11,
     borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  boxDone: { backgroundColor: colors.accentMedium, borderColor: colors.accentMedium },
-  boxEmpty: { backgroundColor: colors.surface, borderColor: colors.accentSoft },
-  boxFaded: { backgroundColor: colors.accentFaint, borderColor: colors.border, opacity: 0.5 },
-  boxToday: { borderWidth: 2.5, borderColor: colors.accentMedium },
+  boxDone: { backgroundColor: colors.dayFilled, borderColor: colors.dayFilled },
+  boxEmpty: { backgroundColor: colors.dayEmpty, borderColor: colors.dayEmpty },
+  boxFaded: { backgroundColor: colors.dayEmpty, borderColor: colors.border, opacity: 0.35 },
+  boxToday: { borderWidth: 2.5, borderColor: colors.today },
 
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8, paddingHorizontal: 24 },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text },

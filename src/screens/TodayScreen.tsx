@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { HabitToggleCard } from '../components/HabitToggleCard';
@@ -9,12 +9,14 @@ import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
 import { todayStr } from '../lib/stats';
 import { periodStreak } from '../lib/habitSchedule';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 
 export function TodayScreen({ navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
   const today = todayStr();
 
@@ -81,7 +83,8 @@ export function TodayScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 100, gap: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { useData } from '../lib/store';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 /**
  * Flips between the card list and the weekly grid.
@@ -14,6 +14,8 @@ import { colors } from '../theme';
  * to a point where it can be made on sight.
  */
 export function LayoutToggle() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habitView, setHabitView } = useData();
   const showingGrid = habitView === 'grid';
 
@@ -34,7 +36,8 @@ export function LayoutToggle() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   button: {
     width: 40,
     height: 40,

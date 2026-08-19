@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Switch } from 'react-native-paper';
 import { useData } from '../lib/store';
@@ -16,7 +16,7 @@ import {
   openBatteryOptimizationPrompt,
 } from '../lib/batteryOptimization';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { HabitView } from '../types';
 
 const VIEW_OPTIONS: { value: HabitView; label: string; description: string }[] = [
@@ -25,6 +25,8 @@ const VIEW_OPTIONS: { value: HabitView; label: string; description: string }[] =
 ];
 
 export function SettingsScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     habitView,
     setHabitView,
@@ -234,7 +236,8 @@ export function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 20 },
   header: { fontSize: 24, fontWeight: '700', color: colors.text },

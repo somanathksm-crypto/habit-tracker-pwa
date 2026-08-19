@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { habitNudge } from '../lib/stats';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { Habit, HabitLog, HabitReminder } from '../types';
 import { AlarmBadge } from './AlarmBadge';
 import { WeekStrip } from './WeekStrip';
@@ -25,6 +25,10 @@ export function HabitToggleCard({
   onPress,
   onEditAlarms,
 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const nudgeBannerStyles = useMemo(() => makeNudgeBannerStyles(colors), [colors]);
+  const nudgeTextStyles = useMemo(() => makeNudgeTextStyles(colors), [colors]);
   const nudge = habitNudge(habit, logs);
 
   return (
@@ -51,7 +55,8 @@ export function HabitToggleCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: 14,
@@ -80,13 +85,15 @@ const styles = StyleSheet.create({
   nudgeText: { fontSize: 12, fontWeight: '600' },
 });
 
-const nudgeBannerStyles = StyleSheet.create({
+const makeNudgeBannerStyles = (colors: Colors) =>
+  StyleSheet.create({
   warning: { backgroundColor: colors.dangerSoft },
   neutral: { backgroundColor: colors.surfaceMuted },
   info: { backgroundColor: colors.warningSoft },
 });
 
-const nudgeTextStyles = StyleSheet.create({
+const makeNudgeTextStyles = (colors: Colors) =>
+  StyleSheet.create({
   warning: { color: colors.danger },
   neutral: { color: colors.textSecondary },
   info: { color: colors.warning },

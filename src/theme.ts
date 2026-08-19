@@ -1,10 +1,47 @@
-import { Platform } from 'react-native';
-import { configureFonts, MD3LightTheme } from 'react-native-paper';
+import { Platform, useColorScheme } from 'react-native';
+import { configureFonts, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
+
+/**
+ * Both palettes share this shape, so holding either one type-checks the same
+ * and a stray or missing token is a compile error rather than a colour that
+ * quietly only works in one theme.
+ */
+export interface Colors {
+  background: string;
+  surface: string;
+  surfaceMuted: string;
+  text: string;
+  textMedium: string;
+  textSecondary: string;
+  textFaint: string;
+  border: string;
+  accent: string;
+  accentMedium: string;
+  accentSoft: string;
+  accentFaint: string;
+  accentInk: string;
+  clay: string;
+  claySoft: string;
+  success: string;
+  warning: string;
+  warningSoft: string;
+  danger: string;
+  dangerSoft: string;
+  longestStreak: string;
+  /** The day squares on the grid and week strip — the app's loudest surface. */
+  dayFilled: string;
+  dayEmpty: string;
+  /** Clock icon and reminder time. */
+  alarm: string;
+  alarmFaint: string;
+  /** Today's marker in the grid's day-letter row. */
+  today: string;
+}
 
 // v2 palette — approved 2026-08-15. Warm stone ground, deep sage accent,
 // clay reserved exclusively for streaks (an earned signal, not decoration).
-export const colors = {
+export const lightColors: Colors = {
   background: '#F1EFE9',
   surface: '#FFFFFF',
   surfaceMuted: '#E8E5DC',
@@ -26,8 +63,69 @@ export const colors = {
   danger: '#B4544A',
   dangerSoft: '#F3DAD7',
   longestStreak: '#4A7FB5',
+  dayFilled: '#7C9587',
+  dayEmpty: '#EEF2EC',
+  alarm: '#35513F',
+  alarmFaint: '#EEF2EC',
+  today: '#35513F',
 };
 
+/**
+ * Derived from the light palette, not inverted from it — approved 2026-08-19.
+ *
+ * Two decisions carry the whole theme. The ground keeps the stone's warm green
+ * bias rather than going blue-black, so the sage still belongs on it. And the
+ * accent *flips*: #35513F was chosen to be dark against a pale ground and is
+ * unreadable on a dark one, so it lifts to #8FB39B — same hue, enough
+ * lightness to carry text.
+ *
+ * The day squares do not follow the accent tints — see dayFilled/dayEmpty.
+ */
+export const darkColors: Colors = {
+  background: '#0D0E0D',
+  surface: '#151715',
+  surfaceMuted: '#1F221F',
+  text: '#ECEAE2', // warm off-white; pure white glares against this ground
+  textMedium: '#C4C6BC',
+  textSecondary: '#969C92',
+  textFaint: '#6B7268',
+  border: '#2E322E',
+  accent: '#8FB39B',
+  accentMedium: '#5E7A68',
+  accentSoft: '#2A3B30',
+  accentFaint: '#1F2A23',
+  accentInk: '#10140F', // inverts, because the fill it sits on inverts
+  clay: '#E4593C',
+  claySoft: '#3A2A20',
+  success: '#8FB39B',
+  warning: '#D6A868',
+  warningSoft: '#3A2F1E',
+  danger: '#E0796D',
+  dangerSoft: '#3B2320',
+  longestStreak: '#6FA4DC',
+  // Deliberately pale rather than dark. The squares read as paper to be filled
+  // in, the way a printed tracker does, and sage ticks read as marks on it.
+  dayFilled: '#8FA894',
+  dayEmpty: '#EDF2EC',
+  alarm: '#5B9BD5',
+  alarmFaint: '#18242E',
+  today: '#5B9BD5',
+};
+
+/**
+ * The active palette, following the phone's own light/dark setting.
+ *
+ * This only reports dark because `userInterfaceStyle` is "automatic" in
+ * app.json — left at "light", the OS answers light forever and the dark
+ * palette silently never appears.
+ */
+export function useColors(): Colors {
+  return useColorScheme() === 'dark' ? darkColors : lightColors;
+}
+
+export function useIsDark(): boolean {
+  return useColorScheme() === 'dark';
+}
 
 // React Native Paper's default MD3 type scale uses a distinct "medium"
 // font alias on Android (sans-serif-medium) for buttons/chips/labels,
@@ -37,22 +135,31 @@ export const colors = {
 const systemFontFamily = Platform.select({ ios: 'System', default: 'sans-serif' });
 const fonts = configureFonts({ config: { fontFamily: systemFontFamily } });
 
-export const theme: MD3Theme = {
-  ...MD3LightTheme,
-  roundness: 3,
-  fonts,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: colors.accent,
-    onPrimary: colors.accentInk,
-    primaryContainer: colors.accentSoft,
-    onPrimaryContainer: colors.accent,
-    background: colors.background,
-    surface: colors.surface,
-    surfaceVariant: colors.surfaceMuted,
-    onSurface: colors.text,
-    onSurfaceVariant: colors.textSecondary,
-    outline: colors.border,
-    error: colors.danger,
-  },
-};
+function buildPaperTheme(colors: Colors, base: MD3Theme): MD3Theme {
+  return {
+    ...base,
+    roundness: 3,
+    fonts,
+    colors: {
+      ...base.colors,
+      primary: colors.accent,
+      onPrimary: colors.accentInk,
+      primaryContainer: colors.accentSoft,
+      onPrimaryContainer: colors.accent,
+      background: colors.background,
+      surface: colors.surface,
+      surfaceVariant: colors.surfaceMuted,
+      onSurface: colors.text,
+      onSurfaceVariant: colors.textSecondary,
+      outline: colors.border,
+      error: colors.danger,
+    },
+  };
+}
+
+export const lightTheme = buildPaperTheme(lightColors, MD3LightTheme);
+export const darkTheme = buildPaperTheme(darkColors, MD3DarkTheme);
+
+export function usePaperTheme(): MD3Theme {
+  return useColorScheme() === 'dark' ? darkTheme : lightTheme;
+}

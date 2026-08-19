@@ -1,5 +1,5 @@
 import { startOfMonth } from 'date-fns';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
@@ -12,7 +12,7 @@ import {
   periodStreak,
 } from '../lib/habitSchedule';
 import { monthlyWeekBreakdown } from '../lib/stats';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 type Props = {
   route: { params: { habitId: string } };
@@ -20,6 +20,8 @@ type Props = {
 };
 
 export function HabitDetailScreen({ route, navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habitId } = route.params;
   const { habits, logsForHabit, deleteHabit } = useData();
   const habit = habits.find((h) => h.id === habitId);
@@ -169,7 +171,8 @@ export function HabitDetailScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40, gap: 16 },
   missing: { padding: 24, color: colors.textSecondary },

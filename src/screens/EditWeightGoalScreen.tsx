@@ -1,13 +1,15 @@
 import { format } from 'date-fns';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { useData } from '../lib/store';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 type Props = { navigation: any };
 
 export function EditWeightGoalScreen({ navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { weightTarget, setWeightTarget } = useData();
   const [startValue, setStartValue] = useState(weightTarget ? String(weightTarget.start_value) : '');
   const [targetValue, setTargetValue] = useState(weightTarget ? String(weightTarget.target_value) : '');
@@ -56,7 +58,8 @@ export function EditWeightGoalScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 8 },
   label: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.4 },

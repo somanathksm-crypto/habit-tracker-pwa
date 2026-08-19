@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { HabitReminder } from '../types';
 import { TimeField } from './TimeField';
 
@@ -17,6 +17,8 @@ interface Props {
  * schedule, set once above — which is why there are no repeat controls here.
  */
 export function ReminderRow({ reminder, onChange, onRemove }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.card}>
       <TimeField value={reminder.time} onChange={(time) => onChange({ ...reminder, time })} />
@@ -27,7 +29,8 @@ export function ReminderRow({ reminder, onChange, onRemove }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: 14,

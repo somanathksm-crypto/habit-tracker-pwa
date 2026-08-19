@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 interface Props {
   value: string; // 'HH:mm'
@@ -13,6 +13,8 @@ interface Props {
  * pulls the native module into the web bundle (or vice versa).
  */
 export function TimeField({ value, onChange }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <TextInput
       value={value}
@@ -24,7 +26,8 @@ export function TimeField({ value, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   field: {
     backgroundColor: colors.accentFaint,
     borderRadius: 10,

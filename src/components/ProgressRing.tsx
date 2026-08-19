@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 interface Props {
   completed: number;
@@ -10,6 +10,8 @@ interface Props {
 }
 
 export function ProgressRing({ completed, total, size = 56 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const pct = total > 0 ? completed / total : 0;
   const stroke = 5;
   const radius = (size - stroke) / 2;
@@ -50,7 +52,8 @@ export function ProgressRing({ completed, total, size = 56 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   inner: { alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 11, fontWeight: '700', color: colors.text, letterSpacing: -0.3, textAlign: 'center' },

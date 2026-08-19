@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 interface Props {
   label: string;
@@ -21,6 +21,8 @@ interface Props {
 }
 
 export function StatCard({ label, value, pill, style, iconName, iconColor, fillPct, infoText, subLabel }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.card, style]}>
       {fillPct !== undefined && (
@@ -45,7 +47,8 @@ export function StatCard({ label, value, pill, style, iconName, iconColor, fillP
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   card: {
     flex: 1,
     minHeight: 90,

@@ -3,13 +3,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useData } from '../lib/store';
 import { globalProgress, monthlyWeekBreakdown } from '../lib/stats';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { InsightsStackParamList } from '../navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type Props = NativeStackScreenProps<InsightsStackParamList, 'InsightsHub'>;
 
 export function InsightsScreen(_props: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habits, habitLogs } = useData();
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -165,7 +167,8 @@ export function InsightsScreen(_props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40 },
   header: { fontSize: 24, fontWeight: '700', color: colors.text, marginBottom: 16 },

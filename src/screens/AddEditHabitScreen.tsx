@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { ReminderRow } from '../components/ReminderRow';
 import { ScheduleField } from '../components/ScheduleField';
 import { useData } from '../lib/store';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import { DEFAULT_SCHEDULE, type HabitReminder, type HabitSchedule } from '../types';
 
 type ReminderDraft = Omit<HabitReminder, 'id' | 'habit_id'>;
@@ -16,6 +16,8 @@ type Props = {
 };
 
 export function AddEditHabitScreen({ route, navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { habits, addHabit, updateHabit, remindersForHabit, setRemindersForHabit, setRemindersEnabled } = useData();
   const existing = route.params?.habitId ? habits.find((h) => h.id === route.params.habitId) : undefined;
 
@@ -90,7 +92,8 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 8 },
   label: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.4 },

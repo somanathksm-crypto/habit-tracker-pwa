@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatTime12 } from '../lib/timeFormat';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { HabitReminder } from '../types';
 
 interface Props {
@@ -19,6 +19,8 @@ interface Props {
  * habits will ring.
  */
 export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const isSet = reminders.length > 0;
   const earliest = isSet
     ? [...reminders].sort((a, b) => a.time.localeCompare(b.time))[0]
@@ -29,7 +31,7 @@ export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
       ? `${formatTime12(earliest!.time)} +${reminders.length - 1}`
       : formatTime12(earliest!.time);
 
-  const tint = isSet ? colors.accent : colors.textSecondary;
+  const tint = isSet ? colors.alarm : colors.textSecondary;
 
   if (variant === 'pill') {
     return (
@@ -51,7 +53,8 @@ export function AlarmBadge({ reminders, onPress, variant = 'inline' }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2 },
   label: { fontSize: 13, fontWeight: '600', minWidth: 92 },
   pill: {
@@ -61,6 +64,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillSet: { backgroundColor: colors.accentFaint },
+  pillSet: { backgroundColor: colors.alarmFaint },
   pillUnset: { backgroundColor: colors.surfaceMuted },
 });

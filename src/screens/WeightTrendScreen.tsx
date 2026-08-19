@@ -8,7 +8,7 @@ import { StatCard } from '../components/StatCard';
 import { useData } from '../lib/store';
 import { expectedWeightOn, todayStr, weightPace } from '../lib/stats';
 import { useSkiaStatus } from '../lib/useSkiaReady';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 type Props = { navigation: any };
 
@@ -20,6 +20,8 @@ const RANGES = [
 ];
 
 export function WeightTrendScreen({ navigation }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { weightLogs, weightTarget, upsertWeightLog } = useData();
   const skiaStatus = useSkiaStatus();
   const [rangeIdx, setRangeIdx] = useState(2);
@@ -196,7 +198,8 @@ export function WeightTrendScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40, gap: 14 },
   title: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },

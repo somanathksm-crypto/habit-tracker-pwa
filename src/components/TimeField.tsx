@@ -1,8 +1,8 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { formatTime12 } from '../lib/timeFormat';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 
 interface Props {
   value: string; // 'HH:mm'
@@ -22,6 +22,8 @@ function toTimeString(date: Date): string {
 
 /** Tap to pick a time. Android opens the system dialog; iOS reveals an inline spinner. */
 export function TimeField({ value, onChange }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [iosOpen, setIosOpen] = useState(false);
 
   const open = () => {
@@ -59,7 +61,8 @@ export function TimeField({ value, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   field: {
     backgroundColor: colors.accentFaint,
     borderRadius: 10,

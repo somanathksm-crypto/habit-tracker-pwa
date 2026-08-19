@@ -1,7 +1,7 @@
 import { addDays, addMonths, differenceInCalendarDays, endOfMonth, format, isSameMonth, startOfMonth, startOfWeek } from 'date-fns';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { HabitLog } from '../types';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -15,6 +15,8 @@ interface Props {
 }
 
 export function CalendarHeatmap({ logs, accent, viewMonth, onChangeMonth }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const completed = new Set(logs.filter((l) => l.completed).map((l) => l.log_date));
   const today = new Date();
   const monthStart = startOfMonth(viewMonth);
@@ -71,7 +73,8 @@ export function CalendarHeatmap({ logs, accent, viewMonth, onChangeMonth }: Prop
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   monthArrow: { fontSize: 20, color: colors.accent, fontWeight: '700', paddingHorizontal: 16 },
   monthArrowDisabled: { color: colors.textFaint },

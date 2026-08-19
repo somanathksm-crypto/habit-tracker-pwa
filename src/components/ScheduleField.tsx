@@ -1,8 +1,8 @@
 import { addDays, format, startOfMonth, startOfWeek } from 'date-fns';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { describeSchedule } from '../lib/habitSchedule';
-import { colors } from '../theme';
+import { useColors, type Colors } from '../theme';
 import type { HabitSchedule } from '../types';
 
 interface Props {
@@ -27,6 +27,8 @@ function defaultFor(period: HabitSchedule['period']): HabitSchedule {
 
 /** When a habit is due: every day, on chosen weekdays, or on specific dates. */
 export function ScheduleField({ value, onChange }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.wrap}>
       <View style={styles.periodRow}>
@@ -63,6 +65,8 @@ function Counter({
   value: number;
   onChange: (n: number) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const times = Math.max(1, value);
   return (
     <View style={styles.row}>
@@ -90,6 +94,8 @@ function WeekPicker({
   value: Extract<HabitSchedule, { period: 'week' }>;
   onChange: (next: HabitSchedule) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const toggle = (day: number) => {
     const has = value.weekdays.includes(day);
     const weekdays = has ? value.weekdays.filter((d) => d !== day) : [...value.weekdays, day];
@@ -136,6 +142,8 @@ function DatePicker({
   value: Extract<HabitSchedule, { period: 'custom' }>;
   onChange: (next: HabitSchedule) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [month, setMonth] = useState(startOfMonth(new Date()));
   const todayKey = format(new Date(), 'yyyy-MM-dd');
 
@@ -192,7 +200,8 @@ function DatePicker({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
   wrap: {
     backgroundColor: colors.surface,
     borderRadius: 14,
