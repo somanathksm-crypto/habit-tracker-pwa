@@ -114,6 +114,11 @@ export function plannedOccurrences(
     // A reminder can outlive its habit if data was edited oddly — drop it.
     if (!habit) continue;
 
+    // A reminder bound to a slot beyond the habit's current count is kept in
+    // the data — lowering "times a day" shouldn't discard times you typed — but
+    // it must not ring for a slot that no longer exists.
+    if (reminder.slot && reminder.slot > Math.max(1, habit.timesPerDay ?? 1)) continue;
+
     const logs = logsByHabit.get(habit.id) ?? [];
     const done = new Set(logs.filter((l) => l.completed).map((l) => l.log_date));
 

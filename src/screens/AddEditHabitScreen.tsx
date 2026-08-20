@@ -1,5 +1,6 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { ReminderRow } from '../components/ReminderRow';
 import { ScheduleField } from '../components/ScheduleField';
@@ -41,6 +42,58 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
 
   const canSave = name.trim().length > 0;
 
+  const explainDeadlines = () =>
+    Alert.alert(
+      'When it counts',
+      `Any time — you have until midnight. Tick them off in any order, whenever suits.
+Right for something like water, where the fourth glass has no particular hour.
+
+At particular time — each one is missed as soon as the next is due, and the last
+one at midnight. An 8am dose still unticked when the 2pm one comes round counts as
+missed, and the streak breaks there. Right for medication, where timing is the point.
+
+Either way the alarms ring the same. This only changes when an unticked one is
+counted against you.`
+    );
+
+  /**
+   * Default times for `count` slots, spread across the waking day.
+   *
+   * Deliberately all different: reminders are deduplicated by time on save, so
+   * seeding several rows at one default would collapse them into a single row
+   * and leave slots with no time at all.
+   */
+  const spreadTimes = (count: number): ReminderDraft[] => {
+    const START = 8 * 60;
+    const END = 20 * 60;
+    const step = count > 1 ? (END - START) / (count - 1) : 0;
+    return Array.from({ length: count }, (_, i) => {
+      const mins = Math.round((START + step * i) / 5) * 5;
+      return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    }).map((time) => ({ time }));
+  };
+
+  /**
+   * A particular time is meaningless without times to be particular about — a
+   * slot with no reminder falls back to end of day and silently undoes the
+   * choice. So both picking the mode and raising the count fill in the gap.
+   */
+  const topUpTimes = (count: number, mode: SlotDeadline) => {
+    if (mode !== 'onTime') return;
+    setReminders((rs) => (rs.length >= count ? rs : [...rs, ...spreadTimes(count).slice(rs.length)]));
+  };
+
+  const chooseDeadline = (mode: SlotDeadline) => {
+    setSlotDeadline(mode);
+    topUpTimes(timesPerDay, mode);
+  };
+
+  // Lowering the count keeps the extra times rather than discarding what was
+  // typed; they simply stop scheduling until the count comes back up.
+  const changeTimesPerDay = (next: number) => {
+    setTimesPerDay(next);
+    topUpTimes(next, slotDeadline);
+  };
   const updateReminder = (index: number, next: ReminderDraft) =>
     setReminders((rs) => rs.map((r, i) => (i === index ? next : r)));
   const removeReminder = (index: number) =>
@@ -82,14 +135,14 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
       <View style={styles.stepperRow}>
         <Pressable
           style={styles.stepper}
-          onPress={() => setTimesPerDay((n) => Math.max(1, n - 1))}
+          onPress={() => changeTimesPerDay(Math.max(1, timesPerDay - 1))}
         >
           <Text style={styles.stepperText}>−</Text>
         </Pressable>
         <Text style={styles.stepperValue}>{timesPerDay}</Text>
         <Pressable
           style={styles.stepper}
-          onPress={() => setTimesPerDay((n) => Math.min(MAX_TIMES_PER_DAY, n + 1))}
+          onPress={() => changeTimesPerDay(Math.min(MAX_TIMES_PER_DAY, timesPerDay + 1))}
         >
           <Text style={styles.stepperText}>+</Text>
         </Pressable>
@@ -100,22 +153,29 @@ export function AddEditHabitScreen({ route, navigation }: Props) {
 
       {/* Only a question once there is more than one, which is almost never. */}
       {timesPerDay > 1 && (
+        <View style={styles.deadlineHeader}>
+          <Text style={styles.deadlineTitle}>When it counts</Text>
+          <Pressable hitSlop={10} onPress={explainDeadlines}>
+            <MaterialCommunityIcons name="information-outline" size={19} color={colors.alarm} />
+          </Pressable>
+        </View>
+      )}
+      {timesPerDay > 1 && (
         <View style={styles.deadlineRow}>
           {(
             [
-              { value: 'endOfDay', label: 'Any time', hint: 'Counts until midnight' },
-              { value: 'onTime', label: 'On time', hint: 'Missed once the next is due' },
-            ] as { value: SlotDeadline; label: string; hint: string }[]
+              { value: 'endOfDay', label: 'Any time' },
+              { value: 'onTime', label: 'At particular time' },
+            ] as { value: SlotDeadline; label: string }[]
           ).map((opt) => {
             const active = slotDeadline === opt.value;
             return (
               <Pressable
                 key={opt.value}
-                onPress={() => setSlotDeadline(opt.value)}
+                onPress={() => chooseDeadline(opt.value)}
                 style={[styles.deadlineChip, active && styles.deadlineChipActive]}
               >
                 <Text style={[styles.deadlineLabel, active && styles.deadlineLabelActive]}>{opt.label}</Text>
-                <Text style={styles.deadlineHint}>{opt.hint}</Text>
               </Pressable>
             );
           })}
@@ -189,7 +249,20 @@ const makeStyles = (colors: Colors) =>
   deadlineChipActive: { borderColor: colors.accentMedium, backgroundColor: colors.accentFaint },
   deadlineLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, minWidth: 70 },
   deadlineLabelActive: { color: colors.accent },
-  deadlineHint: { fontSize: 11, color: colors.textSecondary, marginTop: 2, lineHeight: 15 },
+  deadlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+  },
+  deadlineTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    minWidth: 120,
+  },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 8 },
   label: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.4 },
