@@ -1,15 +1,16 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { HabitToggleCard } from '../components/HabitToggleCard';
+import { SlotSheet } from '../components/SlotSheet';
 import { LayoutToggle } from '../components/LayoutToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ProgressRing } from '../components/ProgressRing';
 import { useData } from '../lib/store';
 import { todayStr } from '../lib/stats';
-import { periodStreak } from '../lib/habitSchedule';
+import { isMultiSlot, periodStreak } from '../lib/habitSchedule';
 import { useColors, type Colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
@@ -18,7 +19,9 @@ type Props = NativeStackScreenProps<TodayStackParamList, 'Today'>;
 export function TodayScreen({ navigation }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
+  const { habits, habitLogs, toggleHabitLog, setHabitSlot, logsForHabit, remindersForHabit } = useData();
+  // Which habit's tick-off sheet is open, and for which day.
+  const [slotSheet, setSlotSheet] = useState<{ habitId: string; dateStr: string } | null>(null);
   const today = todayStr();
 
   const doneCount = habits.filter((h) =>
@@ -65,7 +68,13 @@ export function TodayScreen({ navigation }: Props) {
                 logs={logsForHabit(habit.id)}
                 streak={periodStreak(habit, logsForHabit(habit.id))}
                 reminders={remindersForHabit(habit.id)}
-                onToggleDay={(dateStr) => toggleHabitLog(habit.id, dateStr)}
+                onToggleDay={(dateStr) =>
+                  // More than once a day can't be expressed by a single tap —
+                  // it opens the sheet instead.
+                  isMultiSlot(habit)
+                    ? setSlotSheet({ habitId: habit.id, dateStr })
+                    : toggleHabitLog(habit.id, dateStr)
+                }
                 onPress={() => navigation.navigate('HabitDetail', { habitId: habit.id })}
                 onEditAlarms={() => navigation.navigate('AddEditHabit', { habitId: habit.id })}
               />
@@ -80,6 +89,17 @@ export function TodayScreen({ navigation }: Props) {
         style={styles.fab}
         color="#fff"
         onPress={() => navigation.navigate('AddEditHabit', {})}
+      />
+
+      <SlotSheet
+        habit={slotSheet ? habits.find((h) => h.id === slotSheet.habitId) ?? null : null}
+        logs={slotSheet ? logsForHabit(slotSheet.habitId) : []}
+        reminders={slotSheet ? remindersForHabit(slotSheet.habitId) : []}
+        dateStr={slotSheet?.dateStr ?? ''}
+        onSetSlot={(slot, done) =>
+          slotSheet && setHabitSlot(slotSheet.habitId, slotSheet.dateStr, slot, done)
+        }
+        onClose={() => setSlotSheet(null)}
       />
     </View>
   );

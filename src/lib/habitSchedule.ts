@@ -9,7 +9,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { DEFAULT_SCHEDULE } from '../types';
-import type { Habit, HabitLog, HabitSchedule } from '../types';
+import type { Habit, HabitLog, HabitReminder, HabitSchedule } from '../types';
 
 /**
  * Everything here reasons about *when a habit was actually due* rather than
@@ -316,4 +316,117 @@ export function missedPeriodStreak(habit: Habit, logs: HabitLog[], now: Date = n
 export function periodNoun(habit: Habit): string {
   const period = scheduleOf(habit).period;
   return period === 'day' ? 'day' : period === 'week' ? 'week' : 'date';
+}
+
+// ---------------------------------------------------------------------------
+// Habits due more than once a day
+// ---------------------------------------------------------------------------
+
+/** Slot numbers for a habit, 1..timesPerDay. */
+export function slotsOf(habit: Habit): number[] {
+  const n = Math.max(1, habit.timesPerDay ?? 1);
+  return Array.from({ length: n }, (_, i) => i + 1);
+}
+
+export function isMultiSlot(habit: Habit): boolean {
+  return Math.max(1, habit.timesPerDay ?? 1) > 1;
+}
+
+/**
+ * Slots ticked on a date. A row saved before slots existed means the whole day
+ * was done, which is slot 1.
+ */
+export function slotsDoneOn(logs: HabitLog[], date: Date | string): number[] {
+  const key = typeof date === 'string' ? date : dateKey(date);
+  const log = logs.find((l) => l.log_date === key);
+  if (!log) return [];
+  return log.slots ?? (log.completed ? [1] : []);
+}
+
+/** Minutes past midnight for 'HH:mm', or null if it isn't a usable time. */
+function minutesOf(time: string | undefined): number | null {
+  if (!time) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/**
+ * When a slot stops being available, in minutes past midnight.
+ *
+ * Under `onTime` a slot is missed once the *next* one is due — the alarm rings
+ * at a slot's own time, so treating that moment as the deadline would mark it
+ * failed at the instant it was asked for. The last slot, and anything with no
+ * later time, runs to midnight.
+ *
+ * Deliberately read from the reminder *times* rather than from whether a
+ * notification actually fired: alarms have a global off switch, and turning it
+ * off must not make streaks unbreakable.
+ */
+export function slotDeadlineMinutes(habit: Habit, reminders: HabitReminder[], slot: number): number {
+  const END_OF_DAY = 24 * 60;
+  if ((habit.slotDeadline ?? 'endOfDay') === 'endOfDay') return END_OF_DAY;
+
+  const later = slotsOf(habit)
+    .filter((n) => n > slot)
+    .map((n) => minutesOf(reminders.find((r) => r.slot === n)?.time))
+    .filter((m): m is number => m !== null);
+
+  return later.length > 0 ? Math.min(...later) : END_OF_DAY;
+}
+
+/** Has this slot's window closed on the given day? Past days are always closed. */
+export function isSlotClosed(
+  habit: Habit,
+  reminders: HabitReminder[],
+  slot: number,
+  date: Date,
+  now: Date = new Date()
+): boolean {
+  const today = dateKey(now);
+  const key = dateKey(date);
+  if (key < today) return true;
+  if (key > today) return false;
+  const elapsed = now.getHours() * 60 + now.getMinutes();
+  return elapsed >= slotDeadlineMinutes(habit, reminders, slot);
+}
+
+/**
+ * Consecutive slots done, counting back from now and stopping at the first one
+ * whose window closed unticked.
+ *
+ * Slots still open today are skipped rather than counted as missed. Without
+ * that the number would read zero every morning and nobody would trust it.
+ */
+export function slotStreak(
+  habit: Habit,
+  logs: HabitLog[],
+  reminders: HabitReminder[],
+  now: Date = new Date()
+): number {
+  const created = parseISO(habit.created_at);
+  const slots = slotsOf(habit);
+  let streak = 0;
+
+  for (let i = 0; i < 400; i += 1) {
+    const day = addDays(now, -i);
+    if (differenceInCalendarDays(day, created) < 0) break;
+    if (!isDueOn(habit, day)) continue;
+
+    const done = new Set(slotsDoneOn(logs, day));
+    for (let s = slots.length - 1; s >= 0; s -= 1) {
+      const slot = slots[s];
+      if (done.has(slot)) {
+        streak += 1;
+        continue;
+      }
+      // Still open — hasn't been missed yet, so it neither counts nor breaks.
+      if (!isSlotClosed(habit, reminders, slot, day, now)) continue;
+      return streak;
+    }
+  }
+  return streak;
 }

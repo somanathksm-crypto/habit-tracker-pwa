@@ -4,10 +4,21 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { AlarmBadge } from '../components/AlarmBadge';
+import { SlotFill } from '../components/SlotFill';
+import { SlotSheet } from '../components/SlotSheet';
 import { LayoutToggle } from '../components/LayoutToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useData } from '../lib/store';
-import { describeProgress, hasNonTrivialSchedule, isDueOn, periodStreak, progressFor } from '../lib/habitSchedule';
+import {
+  describeProgress,
+  hasNonTrivialSchedule,
+  isDueOn,
+  isMultiSlot,
+  periodStreak,
+  progressFor,
+  slotsDoneOn,
+  slotsOf,
+} from '../lib/habitSchedule';
 import { useColors, type Colors } from '../theme';
 import type { TodayStackParamList } from '../navigation/types';
 
@@ -29,7 +40,8 @@ const COL_GAP = 9;
 export function HabitGridScreen({ navigation }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { habits, habitLogs, toggleHabitLog, logsForHabit, remindersForHabit } = useData();
+  const { habits, habitLogs, toggleHabitLog, setHabitSlot, logsForHabit, remindersForHabit } = useData();
+  const [slotSheet, setSlotSheet] = useState<{ habitId: string; dateStr: string } | null>(null);
   const { width } = useWindowDimensions();
 
   // Column width is computed rather than left to `flex: 1`. Flex children stop
@@ -157,16 +169,20 @@ export function HabitGridScreen({ navigation }: Props) {
                       <Pressable
                         key={i}
                         disabled={!isToday}
-                        onPress={() => toggleHabitLog(habit.id, dateStr)}
+                        onPress={() =>
+                          isMultiSlot(habit)
+                            ? setSlotSheet({ habitId: habit.id, dateStr })
+                            : toggleHabitLog(habit.id, dateStr)
+                        }
                         style={[styles.dayCol, { width: colWidth }]}
                       >
-                        <View
-                          style={[
-                            styles.box,
-                            { width: colWidth, height: colWidth },
-                            done ? styles.boxDone : notApplicable ? styles.boxFaded : styles.boxEmpty,
-                            isToday && styles.boxToday,
-                          ]}
+                        <SlotFill
+                          fraction={done ? 1 : slotsDoneOn(logs, dateStr).length / slotsOf(habit).length}
+                          size={colWidth}
+                          radius={11}
+                          muted={notApplicable}
+                          borderWidth={isToday ? 2.5 : 1.5}
+                          borderColor={isToday ? colors.today : colors.accentSoft}
                         />
                       </Pressable>
                     );
@@ -185,6 +201,17 @@ export function HabitGridScreen({ navigation }: Props) {
         style={styles.fab}
         color="#fff"
         onPress={() => navigation.navigate('AddEditHabit', {})}
+      />
+
+      <SlotSheet
+        habit={slotSheet ? habits.find((h) => h.id === slotSheet.habitId) ?? null : null}
+        logs={slotSheet ? logsForHabit(slotSheet.habitId) : []}
+        reminders={slotSheet ? remindersForHabit(slotSheet.habitId) : []}
+        dateStr={slotSheet?.dateStr ?? ''}
+        onSetSlot={(slot, done) =>
+          slotSheet && setHabitSlot(slotSheet.habitId, slotSheet.dateStr, slot, done)
+        }
+        onClose={() => setSlotSheet(null)}
       />
     </View>
   );
@@ -235,16 +262,6 @@ const makeStyles = (colors: Colors) =>
   scheduleNoteDone: { color: colors.accent },
 
   boxRow: { flexDirection: 'row', gap: COL_GAP },
-  // Every box is outlined. Fill alone was nearly the same value as the page,
-  // so an empty week read as blank space rather than seven unticked days.
-  box: {
-    borderRadius: 11,
-    borderWidth: 1.5,
-  },
-  boxDone: { backgroundColor: colors.dayFilled, borderColor: colors.dayFilled },
-  boxEmpty: { backgroundColor: colors.dayEmpty, borderColor: colors.dayEmpty },
-  boxFaded: { backgroundColor: colors.dayEmpty, borderColor: colors.border, opacity: 0.35 },
-  boxToday: { borderWidth: 2.5, borderColor: colors.today },
 
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8, paddingHorizontal: 24 },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text },

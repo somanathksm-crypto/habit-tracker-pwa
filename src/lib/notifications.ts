@@ -161,7 +161,9 @@ async function runSync(
       identifier: id,
       content: {
         title: habit.name,
-        body: `Time for ${habit.name}`,
+        // The note is what the alarm is actually for — "use the blue bottle"
+        // is worth waking up to; restating the title is not.
+        body: habit.notes?.trim() ? habit.notes.trim() : `Time for ${habit.name}`,
         sound: 'default',
         vibrate: VIBRATION_PATTERN,
         priority: Notifications.AndroidNotificationPriority.MAX,

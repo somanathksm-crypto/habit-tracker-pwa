@@ -90,6 +90,12 @@ export function HabitDetailScreen({ route, navigation }: Props) {
         </View>
       </View>
 
+      {habit.notes?.trim() ? (
+        <View style={styles.noteCard}>
+          <Text style={styles.noteText}>{habit.notes.trim()}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.statsRow}>
         <StatCard
           label="Longest streak"
@@ -173,6 +179,13 @@ export function HabitDetailScreen({ route, navigation }: Props) {
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
+  noteCard: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  noteText: { fontSize: 13, color: colors.textMedium, lineHeight: 19 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 40, gap: 16 },
   missing: { padding: 24, color: colors.textSecondary },

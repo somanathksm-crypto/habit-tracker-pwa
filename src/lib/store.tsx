@@ -8,9 +8,9 @@ import {
   processLaunchResponse,
 } from './notificationActions';
 import { registerBackgroundNotificationTask } from './backgroundNotificationTask';
-import { DEFAULT_SCHEDULE } from '../types';
+import { DEFAULT_SCHEDULE, MAX_TIMES_PER_DAY } from '../types';
 import type { ThemeMode } from '../theme';
-import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, WeightLog, WeightTarget } from '../types';
+import type { Habit, HabitLog, HabitReminder, HabitSchedule, HabitView, SlotDeadline, WeightLog, WeightTarget } from '../types';
 
 // Local-first data layer, shaped exactly like the Supabase schema
 // (sql/schema.sql) so it can be swapped for real Supabase calls later
@@ -54,13 +54,18 @@ interface DataContextValue extends StoredState {
   addHabit: (input: {
     name: string;
     schedule?: HabitSchedule;
+    timesPerDay?: number;
+    slotDeadline?: SlotDeadline;
+    notes?: string;
   }) => Habit;
   updateHabit: (
     id: string,
-    patch: Partial<Pick<Habit, 'name' | 'schedule'>>
+    patch: Partial<Pick<Habit, 'name' | 'schedule' | 'timesPerDay' | 'slotDeadline' | 'notes'>>
   ) => void;
   deleteHabit: (id: string) => void;
   toggleHabitLog: (habitId: string, logDate: string) => void;
+  /** Tick or untick one slot of a multi-slot habit. */
+  setHabitSlot: (habitId: string, logDate: string, slot: number, done: boolean) => void;
   logsForHabit: (habitId: string) => HabitLog[];
   upsertWeightLog: (logDate: string, value: number) => void;
   setWeightTarget: (target: Omit<WeightTarget, 'user_id'>) => void;
@@ -83,8 +88,14 @@ function migrate(state: StoredState): StoredState {
     // Installs from before the layout picker was dropped stored null here.
     habitView: state.habitView ?? 'cards',
     themePreference: state.themePreference ?? 'system',
-    // Habits predate schedules and were all once a day.
-    habits: state.habits.map((h) => (h.schedule ? h : { ...h, schedule: { ...DEFAULT_SCHEDULE } })),
+    // Habits predate schedules, slot counts, deadlines and notes.
+    habits: state.habits.map((h) => ({
+      ...h,
+      schedule: h.schedule ?? { ...DEFAULT_SCHEDULE },
+      timesPerDay: h.timesPerDay ?? 1,
+      slotDeadline: h.slotDeadline ?? 'endOfDay',
+      notes: h.notes ?? '',
+    })),
   };
 }
 
@@ -186,12 +197,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       loading,
-      addHabit: ({ name, schedule }) => {
+      addHabit: ({ name, schedule, timesPerDay, slotDeadline, notes }) => {
         const habit: Habit = {
           id: uid(),
           user_id: LOCAL_USER_ID,
           name,
           schedule: schedule ?? { ...DEFAULT_SCHEDULE },
+          timesPerDay: Math.max(1, Math.min(MAX_TIMES_PER_DAY, timesPerDay ?? 1)),
+          slotDeadline: slotDeadline ?? 'endOfDay',
+          notes: notes ?? '',
           created_at: new Date().toISOString(),
         };
         setState((s) => ({ ...s, habits: [...s.habits, habit] }));
@@ -221,6 +235,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           // A missed day is an absent row rather than a stored false — stats
           // rely on that, so a second tap removes it.
           return { ...s, habitLogs: s.habitLogs.filter((l) => l.id !== existing.id) };
+        });
+      },
+      setHabitSlot: (habitId, logDate, slot, done) => {
+        setState((s) => {
+          const habit = s.habits.find((h) => h.id === habitId);
+          const total = Math.max(1, habit?.timesPerDay ?? 1);
+          const existing = s.habitLogs.find((l) => l.habit_id === habitId && l.log_date === logDate);
+          // A pre-slots row means the whole day was ticked, i.e. slot 1.
+          const current = existing?.slots ?? (existing ? [1] : []);
+
+          const next = done
+            ? Array.from(new Set([...current, slot])).sort((a, b) => a - b)
+            : current.filter((n) => n !== slot);
+
+          // Emptying the day deletes the row rather than storing a false —
+          // "no row means nothing was done" is relied on throughout stats.
+          if (next.length === 0) {
+            return existing ? { ...s, habitLogs: s.habitLogs.filter((l) => l.id !== existing.id) } : s;
+          }
+
+          const row: HabitLog = {
+            id: existing?.id ?? uid(),
+            habit_id: habitId,
+            log_date: logDate,
+            slots: next,
+            completed: next.length >= total,
+          };
+          return {
+            ...s,
+            habitLogs: existing
+              ? s.habitLogs.map((l) => (l.id === existing.id ? row : l))
+              : [...s.habitLogs, row],
+          };
         });
       },
       logsForHabit: (habitId) => state.habitLogs.filter((l) => l.habit_id === habitId),
@@ -260,7 +307,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             ...s,
             reminders: [
               ...others,
-              ...deduped.map((r) => ({ ...r, id: uid(), habit_id: habitId })),
+              ...deduped.map((r, i) => ({ ...r, id: uid(), habit_id: habitId, slot: i + 1 })),
             ],
           };
         });

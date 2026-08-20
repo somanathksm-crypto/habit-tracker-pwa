@@ -2,21 +2,25 @@ import { addDays, format, isAfter, isBefore, parseISO, startOfDay, startOfWeek }
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useColors, type Colors } from '../theme';
-import type { HabitLog } from '../types';
+import { slotsDoneOn, slotsOf } from '../lib/habitSchedule';
+import { SlotFill } from './SlotFill';
+import type { Habit, HabitLog } from '../types';
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 interface Props {
+  habit: Habit;
   logs: HabitLog[];
   createdAt: string;
   onToggleDay: (dateStr: string) => void;
 }
 
 /** Current calendar week (Monday–Sunday) — shows the week's completion at a glance; only today is tappable to toggle. */
-export function WeekStrip({ logs, createdAt, onToggleDay }: Props) {
+export function WeekStrip({ habit, logs, createdAt, onToggleDay }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const completed = new Set(logs.filter((l) => l.completed).map((l) => l.log_date));
+  const totalSlots = slotsOf(habit).length;
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -43,7 +47,12 @@ export function WeekStrip({ logs, createdAt, onToggleDay }: Props) {
             hitSlop={4}
             style={styles.dayCol}
           >
-            <View style={[styles.box, done ? styles.boxDone : notApplicable ? styles.boxFuture : styles.boxEmpty]} />
+            <SlotFill
+              fraction={done ? 1 : slotsDoneOn(logs, dateStr).length / totalSlots}
+              size={23}
+              radius={6}
+              muted={notApplicable}
+            />
             <Text style={[styles.dayLabel, dateStr === todayStr && styles.dayLabelToday]}>{letter}</Text>
           </Pressable>
         );
@@ -55,11 +64,7 @@ export function WeekStrip({ logs, createdAt, onToggleDay }: Props) {
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
   row: { flexDirection: 'row' },
-  dayCol: { alignItems: 'center', marginRight: 6, paddingVertical: 2 },
-  box: { width: 23, height: 23, borderRadius: 6, marginBottom: 4 },
-  boxDone: { backgroundColor: colors.dayFilled },
-  boxEmpty: { backgroundColor: colors.dayEmpty },
-  boxFuture: { backgroundColor: colors.dayEmpty, opacity: 0.4 },
+  dayCol: { alignItems: 'center', marginRight: 6, paddingVertical: 2, gap: 4 },
   dayLabel: { fontSize: 10, fontWeight: '600', color: colors.textFaint },
   dayLabelToday: { color: colors.accent },
 });

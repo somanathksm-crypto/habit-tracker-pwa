@@ -38,7 +38,7 @@ export function HabitToggleCard({
         <Text style={styles.name}>{habit.name}</Text>
       </View>
       <View style={styles.metaRow}>
-        <WeekStrip logs={logs} createdAt={habit.created_at} onToggleDay={onToggleDay} />
+        <WeekStrip habit={habit} logs={logs} createdAt={habit.created_at} onToggleDay={onToggleDay} />
         {streak > 0 && (
           <View style={styles.streakChip}>
             <Text style={styles.streakEmoji}>🔥</Text>
